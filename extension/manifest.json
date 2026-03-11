@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Billable Time Tracker",
+  "version": "1.0.0",
+  "description": "Automatically tracks browser activity for legal billing",
+  "permissions": ["tabs", "storage", "alarms", "activeTab"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png"
+  }
+}

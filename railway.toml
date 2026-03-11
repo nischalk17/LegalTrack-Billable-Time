@@ -1,0 +1,12 @@
+# railway.toml - Railway deployment configuration
+# https://docs.railway.app
+
+[build]
+builder = "DOCKERFILE"
+
+# This file is used per-service. Each service in Railway
+# points to its own Dockerfile:
+#
+# Service: backend  → ./backend/Dockerfile
+# Service: frontend → ./frontend/Dockerfile
+# Service: db       → Railway PostgreSQL plugin (no Dockerfile needed)

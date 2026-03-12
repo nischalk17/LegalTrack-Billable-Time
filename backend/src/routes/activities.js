@@ -102,7 +102,7 @@ router.get('/', auth, [
     );
 
     const countResult = await pool.query(
-      `SELECT COUNT(*) FROM tracked_activities WHERE ${conditions.slice(0, -0).join(' AND ')}`,
+      `SELECT COUNT(*) FROM tracked_activities WHERE ${conditions.join(' AND ')}`,
       params.slice(0, -2)
     );
 

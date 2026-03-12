@@ -63,7 +63,7 @@ router.get('/', auth, async (req, res) => {
     );
 
     const countResult = await pool.query(
-      `SELECT COUNT(*) FROM manual_entries WHERE ${conditions.slice(0, idx - 2).join(' AND ')}`,
+      `SELECT COUNT(*) FROM manual_entries WHERE ${conditions.join(' AND ')}`,
       params.slice(0, -2)
     );
 

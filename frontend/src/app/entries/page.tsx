@@ -14,6 +14,7 @@ function EntryModal({ entry, onClose, onSave }: {
   onClose: () => void;
   onSave: (data: any) => Promise<void>;
 }) {
+  const [clientsArr, setClientsArr] = useState<{id:string, name:string}[]>([]);
   const [form, setForm] = useState<any>(entry ? {
     client: entry.client, matter: entry.matter || '',
     description: entry.description, date: entry.date,
@@ -22,6 +23,10 @@ function EntryModal({ entry, onClose, onSave }: {
   } : { ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    import('@/lib/api').then(m => m.clients.list().then(setClientsArr));
+  }, []);
 
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
@@ -51,7 +56,10 @@ function EntryModal({ entry, onClose, onSave }: {
         <div className="form-grid">
           <div className="form-group">
             <label>Client *</label>
-            <input value={form.client} onChange={e => set('client', e.target.value)} placeholder="e.g. Acme Corp" />
+            <select value={form.client} onChange={e => set('client', e.target.value)}>
+              <option value="">Select a client...</option>
+              {clientsArr.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+            </select>
           </div>
           <div className="form-group">
             <label>Matter</label>

@@ -3,7 +3,7 @@ import './globals.css';
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Clock, FileText, Lightbulb, LogOut, Scale } from 'lucide-react';
+import { LayoutDashboard, Clock, FileText, Lightbulb, LogOut, Scale, Users } from 'lucide-react';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -31,6 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     { href: '/',            label: 'Dashboard',   icon: LayoutDashboard },
     { href: '/activities',  label: 'Activities',  icon: Clock },
     { href: '/entries',     label: 'Time Entries', icon: FileText },
+    { href: '/clients',     label: 'Clients',     icon: Users },
     { href: '/suggestions', label: 'Suggestions', icon: Lightbulb },
   ];
 

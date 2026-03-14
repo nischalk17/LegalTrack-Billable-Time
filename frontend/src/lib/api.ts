@@ -83,6 +83,34 @@ export const suggestions = {
     request<BillableSuggestion>(`/api/suggestions/${id}/dismiss`, { method: 'PATCH' }),
 };
 
+// ── Clients ───────────────────────────────────────────────────
+export const clients = {
+  list: () => request<Client[]>('/api/clients'),
+  get: (id: string) => request<Client & { total_billed: number }>(`/api/clients/${id}`),
+  create: (data: Partial<Client>) => request<Client>('/api/clients', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<Client>) => request<Client>(`/api/clients/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<{ message: string; id: string }>(`/api/clients/${id}`, { method: 'DELETE' }),
+};
+
+// ── Bills ─────────────────────────────────────────────────────
+export const bills = {
+  list: () => request<Bill[]>('/api/bills'),
+  get: (id: string) => request<Bill & { line_items: BillLineItem[] }>(`/api/bills/${id}`),
+  generate: (data: { client_id: string; date_from: string; date_to: string; matter?: string }) => 
+    request<Bill & { line_items: BillLineItem[] }>('/api/bills/generate', { method: 'POST', body: JSON.stringify(data) }),
+  updateStatus: (id: string, status: 'draft' | 'sent' | 'paid') => 
+    request<Bill>(`/api/bills/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  delete: (id: string) => request<{ message: string }>(`/api/bills/${id}`, { method: 'DELETE' }),
+  downloadPdf: async (id: string) => {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API_URL}/api/bills/${id}/pdf`, { headers });
+    if (!res.ok) throw new Error('Download failed');
+    return res.blob();
+  }
+};
+
 // ── Types ─────────────────────────────────────────────────────
 export interface User {
   id: string; email: string; name: string; created_at: string;
@@ -112,6 +140,24 @@ export interface BillableSuggestion {
   duration_minutes: number; date: string;
   status: 'pending' | 'accepted' | 'dismissed';
   created_at: string;
+}
+export interface Client {
+  id: string; user_id: string; name: string; contact_person: string;
+  email: string; phone: string; address: string; pan_number: string;
+  default_hourly_rate: number; is_vat_applicable: boolean; notes: string;
+  created_at: string; updated_at: string;
+}
+export interface Bill {
+  id: string; user_id: string; client_id: string; bill_number: string;
+  matter: string; date_from: string; date_to: string;
+  subtotal_npr: number; vat_amount_npr: number; total_npr: number;
+  status: 'draft' | 'sent' | 'paid'; notes: string;
+  created_at: string; updated_at: string;
+  client_name?: string;
+}
+export interface BillLineItem {
+  id: string; bill_id: string; entry_id: string; description: string;
+  date: string; duration_minutes: number; hourly_rate_npr: number; amount_npr: number;
 }
 
 export { getToken };

@@ -106,6 +106,45 @@ export default function EntriesPage() {
   const [modalEntry, setModalEntry] = useState<Partial<ManualEntry> | null | false>(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  const [showExport, setShowExport] = useState(false);
+  const [exportDates, setExportDates] = useState({ from: '', to: '' });
+  const [exportClient, setExportClient] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
+
+  const handleExport = async () => {
+    setExporting(true);
+    setExportError('');
+    try {
+      const q = new URLSearchParams();
+      if (exportDates.from) q.append('date_from', exportDates.from);
+      if (exportDates.to) q.append('date_to', exportDates.to);
+      if (exportClient) q.append('client', exportClient);
+      
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/reports/pdf?${q.toString()}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!res.ok) throw new Error('Export failed');
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `TimeReport_${exportDates.from||'all'}_${exportDates.to||'all'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+      setShowExport(false);
+    } catch (err: any) {
+      setExportError(err.message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const load = async () => {
     setLoading(true);
     try {
@@ -143,8 +182,24 @@ export default function EntriesPage() {
       </div>
 
       <div className="toolbar">
-        <div className="toolbar-left" />
+        <div className="toolbar-left">
+          {showExport && (
+            <div style={{display:'flex',gap:8,alignItems:'center',background:'var(--surface)',padding:'4px 8px',borderRadius:6,border:'1px solid var(--border)'}}>
+              <input type="date" value={exportDates.from} onChange={e => setExportDates(d => ({...d, from: e.target.value}))} className="form-input" style={{padding:'4px 8px',fontSize:13,height:28}} />
+              <span style={{color:'var(--text2)'}}>to</span>
+              <input type="date" value={exportDates.to} onChange={e => setExportDates(d => ({...d, to: e.target.value}))} className="form-input" style={{padding:'4px 8px',fontSize:13,height:28}} />
+              <input type="text" placeholder="Client (optional)" value={exportClient} onChange={e => setExportClient(e.target.value)} className="form-input" style={{padding:'4px 8px',fontSize:13,height:28,width:120}} />
+              <button className="btn btn-sm btn-primary" onClick={handleExport} disabled={exporting}>
+                {exporting ? '...' : 'Download'}
+              </button>
+              {exportError && <span style={{color:'var(--red)',fontSize:12,marginLeft:8}}>{exportError}</span>}
+            </div>
+          )}
+        </div>
         <div className="toolbar-right">
+          <button className="btn btn-secondary" onClick={() => setShowExport(!showExport)}>
+            Export PDF
+          </button>
           <button className="btn btn-primary" onClick={() => setModalEntry({})}>
             <Plus size={14}/> New Entry
           </button>

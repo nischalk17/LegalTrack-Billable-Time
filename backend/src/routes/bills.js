@@ -29,23 +29,7 @@ router.post('/generate', auth, async (req, res) => {
       `SELECT * FROM manual_entries WHERE ${conditions.join(' AND ')} ORDER BY date ASC`, params
     );
 
-    // Fetch tracked_activities optionally
-    let trackedActivities = [];
-    if (include_tracked_activities) {
-      let tConditions = ['user_id = $1', 'client_id = $2', 'DATE(start_time) >= $3', 'DATE(start_time) <= $4'];
-      let tParams = [req.user.id, client_id, date_from, date_to];
-      let tIdx = 5;
-      if (matter) {
-        tConditions.push(`matter ILIKE $${tIdx++}`);
-        tParams.push(`%${matter}%`);
-      }
-      const { rows } = await dbClient.query(
-        `SELECT * FROM tracked_activities WHERE ${tConditions.join(' AND ')} ORDER BY start_time ASC`, tParams
-      );
-      trackedActivities = rows;
-    }
-
-    if (manualEntries.length === 0 && trackedActivities.length === 0) {
+    if (manualEntries.length === 0) {
       return res.status(400).json({ error: 'No entries found for this period' });
     }
 
@@ -56,21 +40,13 @@ router.post('/generate', auth, async (req, res) => {
       const amount = Math.round((entry.duration_minutes / 60) * client.default_hourly_rate);
       subtotal_npr += amount;
       lineItems.push({
-        source: 'manual', entry_id: entry.id, description: entry.description,
-        date: entry.date, duration_minutes: entry.duration_minutes,
-        hourly_rate_npr: client.default_hourly_rate, amount_npr: amount
-      });
-    }
-
-    for (const track of trackedActivities) {
-      const amount = Math.round((track.duration_seconds / 3600.0) * client.default_hourly_rate);
-      const mins = Math.round(track.duration_seconds / 60);
-      subtotal_npr += amount;
-      lineItems.push({
-        source: 'tracked', entry_id: null,
-        description: track.window_title || track.app_name || 'Tracked Activity',
-        date: track.start_time.toISOString().split('T')[0],
-        duration_minutes: mins, hourly_rate_npr: client.default_hourly_rate, amount_npr: amount
+        source: entry.activity_id ? 'tracked' : 'manual', 
+        entry_id: entry.id, 
+        description: entry.description,
+        date: entry.date, 
+        duration_minutes: entry.duration_minutes,
+        hourly_rate_npr: client.default_hourly_rate, 
+        amount_npr: amount
       });
     }
 

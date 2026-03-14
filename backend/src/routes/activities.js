@@ -3,6 +3,7 @@ const { body, query, validationResult } = require('express-validator');
 const pool = require('../db/pool');
 const auth = require('../middleware/auth');
 const { matchRules } = require('../utils/matchRules');
+const { convertActivityToEntry } = require('../utils/entryConverter');
 
 /**
  * @swagger
@@ -61,6 +62,11 @@ router.post('/', auth, [
       [req.user.id, source_type, app_name, window_title, domain, file_name, url,
        start_time, end_time, duration_seconds, final_client_id, final_matter]
     );
+
+    if (final_client_id) {
+      await convertActivityToEntry(pool, result.rows[0]);
+    }
+
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error('Ingest activity error:', err);
@@ -123,6 +129,11 @@ router.post('/batch', auth, async (req, res) => {
         [req.user.id, a.source_type, a.app_name, a.window_title, a.domain,
          a.file_name, a.url, a.start_time, a.end_time, a.duration_seconds, final_client_id, final_matter]
       );
+
+      if (final_client_id) {
+        await convertActivityToEntry(client, r.rows[0]);
+      }
+
       inserted.push(r.rows[0]);
     }
     await client.query('COMMIT');
@@ -161,6 +172,10 @@ router.patch('/:id/assign', auth, async (req, res) => {
       [client_id, matter || null, req.params.id, req.user.id]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Activity not found' });
+    
+    // Auto-convert to time entry now that it's tagged
+    await convertActivityToEntry(pool, rows[0]);
+
     res.json(rows[0]);
   } catch (error) {
     console.error('Assign activity error:', error);

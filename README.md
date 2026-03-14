@@ -68,22 +68,25 @@ The tracker polls every 10 seconds and flushes every 60 seconds.
 
 ## API Reference
 
+## API Reference
+
 | Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
+|------|------|------|------|
 | POST | /api/auth/register | - | Register user |
 | POST | /api/auth/login | - | Login → JWT |
 | GET | /api/auth/me | ✓ | Get current user |
 | POST | /api/activities | ✓ | Ingest single activity |
 | POST | /api/activities/batch | ✓ | Ingest batch activities |
-| GET | /api/activities | ✓ | List activities (filterable) |
-| GET | /api/activities/stats | ✓ | Daily stats summary |
+| GET | /api/activities | ✓ | List activities |
+| GET | /api/activities/stats | ✓ | Daily activity summary |
 | POST | /api/entries | ✓ | Create manual entry |
-| GET | /api/entries | ✓ | List entries |
+| GET | /api/entries | ✓ | List time entries |
+| GET | /api/entries/:id | ✓ | Get single entry |
 | PUT | /api/entries/:id | ✓ | Update entry |
 | DELETE | /api/entries/:id | ✓ | Delete entry |
-| POST | /api/suggestions/generate | ✓ | Generate from activities |
+| POST | /api/suggestions/generate | ✓ | Generate suggestions |
 | GET | /api/suggestions | ✓ | List suggestions |
-| PATCH | /api/suggestions/:id/accept | ✓ | Accept → create entry |
+| PATCH | /api/suggestions/:id/accept | ✓ | Accept suggestion |
 | PATCH | /api/suggestions/:id/dismiss | ✓ | Dismiss suggestion |
 
 ---

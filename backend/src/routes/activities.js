@@ -3,6 +3,55 @@ const { body, query, validationResult } = require('express-validator');
 const pool = require('../db/pool');
 const auth = require('../middleware/auth');
 
+/**
+ * @swagger
+ * /api/activities:
+ *   post:
+ *     summary: Ingest a single tracked activity
+ *     tags: [Activities]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - source_type
+ *               - start_time
+ *               - end_time
+ *               - duration_seconds
+ *             properties:
+ *               source_type:
+ *                 type: string
+ *                 enum: [browser, desktop]
+ *               start_time:
+ *                 type: string
+ *                 format: date-time
+ *               end_time:
+ *                 type: string
+ *                 format: date-time
+ *               duration_seconds:
+ *                 type: integer
+ *               app_name:
+ *                 type: string
+ *               window_title:
+ *                 type: string
+ *               domain:
+ *                 type: string
+ *               file_name:
+ *                 type: string
+ *               url:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Activity successfully ingested
+ *       400:
+ *         description: Validation error
+ *       500:
+ *         description: Server error
+ */
 // POST /api/activities - Ingest tracked activity (from extension or desktop tracker)
 router.post('/', auth, [
   body('source_type').isIn(['browser', 'desktop']),
@@ -34,6 +83,62 @@ router.post('/', auth, [
   }
 });
 
+/**
+ * @swagger
+ * /api/activities/batch:
+ *   post:
+ *     summary: Ingest multiple activities at once
+ *     tags: [Activities]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - activities
+ *             properties:
+ *               activities:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - source_type
+ *                     - start_time
+ *                     - end_time
+ *                     - duration_seconds
+ *                   properties:
+ *                     source_type:
+ *                       type: string
+ *                       enum: [browser, desktop]
+ *                     start_time:
+ *                       type: string
+ *                       format: date-time
+ *                     end_time:
+ *                       type: string
+ *                       format: date-time
+ *                     duration_seconds:
+ *                       type: integer
+ *                     app_name:
+ *                       type: string
+ *                     window_title:
+ *                       type: string
+ *                     domain:
+ *                       type: string
+ *                     file_name:
+ *                       type: string
+ *                     url:
+ *                       type: string
+ *     responses:
+ *       201:
+ *         description: Activities successfully ingested
+ *       400:
+ *         description: Validation error
+ *       500:
+ *         description: Server error
+ */
 // POST /api/activities/batch - Ingest multiple activities at once
 router.post('/batch', auth, async (req, res) => {
   const { activities } = req.body;
@@ -67,6 +172,44 @@ router.post('/batch', auth, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/activities:
+ *   get:
+ *     summary: List activities with filters
+ *     tags: [Activities]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: source_type
+ *         schema:
+ *           type: string
+ *           enum: [browser, desktop]
+ *       - in: query
+ *         name: date
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 200
+ *           default: 50
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *     responses:
+ *       200:
+ *         description: List of activities
+ *       500:
+ *         description: Server error
+ */
 // GET /api/activities - List activities with filters
 router.get('/', auth, [
   query('source_type').optional().isIn(['browser', 'desktop']),
@@ -118,6 +261,26 @@ router.get('/', auth, [
   }
 });
 
+/**
+ * @swagger
+ * /api/activities/stats:
+ *   get:
+ *     summary: Get daily summary stats
+ *     tags: [Activities]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: Statistics generated successfully
+ *       500:
+ *         description: Server error
+ */
 // GET /api/activities/stats - Daily summary stats
 router.get('/stats', auth, async (req, res) => {
   const { date } = req.query;

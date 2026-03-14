@@ -74,6 +74,30 @@ function classifyActivity(activity) {
   return { category: 'general_work', description: `Work in ${activity.app_name || 'Application'}: ${activity.window_title || ''}`.trim() };
 }
 
+/**
+ * @swagger
+ * /api/suggestions/generate:
+ *   post:
+ *     summary: Generate billable suggestions from recent activities
+ *     tags: [Suggestions]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               date:
+ *                 type: string
+ *                 format: date
+ *                 description: Date to generate suggestions for (defaults to today)
+ *     responses:
+ *       200:
+ *         description: Suggestions generated successfully
+ *       500:
+ *         description: Server error
+ */
 // POST /api/suggestions/generate - Generate suggestions from recent unprocessed activities
 router.post('/generate', auth, async (req, res) => {
   const { date } = req.body;
@@ -131,6 +155,44 @@ router.post('/generate', auth, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/suggestions:
+ *   get:
+ *     summary: List generated suggestions
+ *     tags: [Suggestions]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           default: pending
+ *       - in: query
+ *         name: date
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 200
+ *           default: 50
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *     responses:
+ *       200:
+ *         description: List of suggestions
+ *       500:
+ *         description: Server error
+ */
 // GET /api/suggestions - List suggestions
 router.get('/', auth, async (req, res) => {
   const { status = 'pending', date, limit = 50, offset = 0 } = req.query;
@@ -166,6 +228,41 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/suggestions/{id}/accept:
+ *   patch:
+ *     summary: Accept a suggestion and create a manual entry
+ *     tags: [Suggestions]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               client:
+ *                 type: string
+ *                 default: General
+ *               matter:
+ *                 type: string
+ *               notes:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Suggestion accepted and entry created
+ *       404:
+ *         description: Suggestion not found
+ *       500:
+ *         description: Server error
+ */
 // PATCH /api/suggestions/:id/accept - Accept suggestion → create manual entry
 router.patch('/:id/accept', auth, async (req, res) => {
   const { client: clientName = 'General', matter, notes } = req.body;
@@ -209,6 +306,28 @@ router.patch('/:id/accept', auth, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/suggestions/{id}/dismiss:
+ *   patch:
+ *     summary: Dismiss a suggestion
+ *     tags: [Suggestions]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Suggestion dismissed
+ *       404:
+ *         description: Suggestion not found
+ *       500:
+ *         description: Server error
+ */
 // PATCH /api/suggestions/:id/dismiss
 router.patch('/:id/dismiss', auth, async (req, res) => {
   try {

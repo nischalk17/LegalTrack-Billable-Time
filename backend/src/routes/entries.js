@@ -13,6 +13,51 @@ const entryValidation = [
   body('notes').optional().trim(),
 ];
 
+/**
+ * @swagger
+ * /api/entries:
+ *   post:
+ *     summary: Create a manual time entry
+ *     tags: [Entries]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - client
+ *               - description
+ *               - date
+ *               - duration_minutes
+ *             properties:
+ *               client:
+ *                 type: string
+ *               matter:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               date:
+ *                 type: string
+ *                 format: date
+ *               duration_minutes:
+ *                 type: integer
+ *                 minimum: 1
+ *               source_type:
+ *                 type: string
+ *                 enum: [manual, browser, desktop, suggestion]
+ *               notes:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Entry created successfully
+ *       400:
+ *         description: Validation error
+ *       500:
+ *         description: Server error
+ */
 // POST /api/entries - Create manual entry
 router.post('/', auth, entryValidation, async (req, res) => {
   const errors = validationResult(req);
@@ -34,6 +79,43 @@ router.post('/', auth, entryValidation, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/entries:
+ *   get:
+ *     summary: List all manual entries for user
+ *     tags: [Entries]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: client
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: date
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 200
+ *           default: 50
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *     responses:
+ *       200:
+ *         description: List of entries
+ *       500:
+ *         description: Server error
+ */
 // GET /api/entries - List all entries for user
 router.get('/', auth, async (req, res) => {
   const { client, date, limit = 50, offset = 0 } = req.query;
@@ -77,6 +159,28 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/entries/{id}:
+ *   get:
+ *     summary: Get a single manual entry
+ *     tags: [Entries]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Entry details
+ *       404:
+ *         description: Entry not found
+ *       500:
+ *         description: Server error
+ */
 // GET /api/entries/:id - Get single entry
 router.get('/:id', auth, async (req, res) => {
   try {
@@ -91,6 +195,59 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/entries/{id}:
+ *   put:
+ *     summary: Update an existing manual entry
+ *     tags: [Entries]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - client
+ *               - description
+ *               - date
+ *               - duration_minutes
+ *             properties:
+ *               client:
+ *                 type: string
+ *               matter:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               date:
+ *                 type: string
+ *                 format: date
+ *               duration_minutes:
+ *                 type: integer
+ *                 minimum: 1
+ *               source_type:
+ *                 type: string
+ *                 enum: [manual, browser, desktop, suggestion]
+ *               notes:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Entry updated successfully
+ *       400:
+ *         description: Validation error
+ *       404:
+ *         description: Entry not found
+ *       500:
+ *         description: Server error
+ */
 // PUT /api/entries/:id - Update entry
 router.put('/:id', auth, entryValidation, async (req, res) => {
   const errors = validationResult(req);
@@ -116,6 +273,28 @@ router.put('/:id', auth, entryValidation, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/entries/{id}:
+ *   delete:
+ *     summary: Delete a manual entry
+ *     tags: [Entries]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Entry deleted successfully
+ *       404:
+ *         description: Entry not found
+ *       500:
+ *         description: Server error
+ */
 // DELETE /api/entries/:id - Delete entry
 router.delete('/:id', auth, async (req, res) => {
   try {

@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpecs = require('./config/swagger');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -21,6 +23,9 @@ app.get('/api/health', (req, res) => {
     version: '1.0.0'
   });
 });
+
+// ── Swagger UI ─────────────────────────────────────────────────
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs));
 
 // ── Routes ────────────────────────────────────────────────────
 app.use('/api/auth',        require('./routes/auth'));

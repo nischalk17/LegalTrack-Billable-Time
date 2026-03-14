@@ -3,12 +3,15 @@ import './globals.css';
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Clock, FileText, Lightbulb, LogOut, Scale, Users } from 'lucide-react';
+import { LayoutDashboard, Clock, FileText, Lightbulb, LogOut, Scale, Users, Sliders } from 'lucide-react';
+import { activities } from '@/lib/api';
+import ActiveSessionBar from '@/components/ActiveSessionBar';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  const [untaggedCount, setUntaggedCount] = useState(0);
   const isAuthPage = pathname === '/login' || pathname === '/register';
 
   useEffect(() => {
@@ -18,6 +21,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       router.push('/login');
     } else if (userData) {
       setUser(JSON.parse(userData));
+      if (!isAuthPage) {
+        activities.getUntaggedCount().then(res => setUntaggedCount(res.count)).catch(() => {});
+      }
     }
   }, [pathname]);
 
@@ -29,7 +35,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
   const navItems = [
     { href: '/',            label: 'Dashboard',   icon: LayoutDashboard },
-    { href: '/activities',  label: 'Activities',  icon: Clock },
+    { href: '/activities',  label: 'Activities',  icon: Clock, badge: untaggedCount > 0 ? `${untaggedCount} untagged` : undefined },
+    { href: '/rules',       label: 'Rules',       icon: Sliders },
     { href: '/entries',     label: 'Time Entries', icon: FileText },
     { href: '/clients',     label: 'Clients',     icon: Users },
     { href: '/suggestions', label: 'Suggestions', icon: Lightbulb },
@@ -51,10 +58,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <span>LegalTrack</span>
               </div>
               <nav className="sidebar-nav">
-                {navItems.map(({ href, label, icon: Icon }) => (
+                {navItems.map(({ href, label, icon: Icon, badge }) => (
                   <Link key={href} href={href} className={`nav-item ${pathname === href ? 'active' : ''}`}>
                     <Icon size={16} />
                     <span>{label}</span>
+                    {badge && <span style={{marginLeft:'auto', background:'#eab308', color:'#713f12', fontSize:'10px', padding:'2px 6px', borderRadius:'10px', fontWeight:600}}>{badge}</span>}
                   </Link>
                 ))}
               </nav>
@@ -63,7 +71,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <button onClick={logout} className="logout-btn"><LogOut size={14} /> Logout</button>
               </div>
             </aside>
-            <main className="main-content">{children}</main>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <ActiveSessionBar />
+              <main className="main-content" style={{ flex: 1, overflowY: 'auto' }}>{children}</main>
+            </div>
           </div>
         )}
       </body>

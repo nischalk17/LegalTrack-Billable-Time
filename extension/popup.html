@@ -33,7 +33,7 @@
     .status-value.active { color: #38bdf8; }
     .token-section { margin-top: 8px; }
     .token-section label { display: block; font-size: 11px; color: #64748b; margin-bottom: 4px; }
-    input[type="text"] {
+    input[type="text"], select {
       width: 100%;
       background: #1e293b;
       border: 1px solid #334155;
@@ -43,7 +43,7 @@
       font-size: 12px;
       outline: none;
     }
-    input[type="text"]:focus { border-color: #38bdf8; }
+    input[type="text"]:focus, select:focus { border-color: #38bdf8; }
     .btn {
       width: 100%;
       padding: 8px;
@@ -61,6 +61,9 @@
     .stat-row { display: flex; justify-content: space-between; font-size: 11px; color: #64748b; margin-top: 8px; }
     .stat-val { color: #94a3b8; font-weight: 500; }
     .saved-badge { font-size: 10px; color: #22c55e; margin-top: 2px; }
+    
+    .matter-panel { margin-bottom: 12px; border: 1px dashed #334155; border-radius: 8px; padding: 12px; }
+    .inline-btn { width: 48%; display: inline-block; }
   </style>
 </head>
 <body>
@@ -69,15 +72,43 @@
     <h1>Billable Tracker</h1>
   </div>
   <div class="content">
+    
+    <!-- Active Matter Session UI -->
+    <div id="activeSessionBlock" class="matter-panel" style="display:none;">
+      <div class="status-label">Active Matter</div>
+      <div class="status-value active" id="amClientName" style="font-weight:bold; color:white;"></div>
+      <div class="status-value" id="amMatterText"></div>
+      <div style="margin-top:8px;">
+        <button class="btn btn-secondary inline-btn" id="amChangeBtn">Change</button>
+        <button class="btn btn-primary inline-btn" style="float:right; background:#ef4444;" id="amEndBtn">End Session</button>
+      </div>
+    </div>
+
+    <div id="noSessionBlock" class="matter-panel">
+      <div class="status-label" id="noSessionMsg">No active matter</div>
+      <button class="btn btn-primary" id="startSessionBtn" style="margin-top:8px;">Start Tracking Client</button>
+      <div id="startSessionForm" style="display:none; margin-top:8px;">
+        <select id="amClientSelect" style="margin-bottom:8px;">
+          <option value="">Select Client...</option>
+        </select>
+        <input type="text" id="amMatterInput" placeholder="Matter name (optional)" style="margin-bottom:8px;"/>
+        <button class="btn btn-primary" id="confirmStartSessionBtn">Start Session</button>
+      </div>
+    </div>
+    
+    <!-- End Active Matter UI -->
+
     <div class="status-card">
       <div class="status-label">Current Page</div>
       <div class="status-value active" id="currentTitle">Loading...</div>
       <div class="status-value" id="currentDomain"></div>
     </div>
+    
     <div class="stat-row">
       <span>Buffered events</span>
       <span class="stat-val" id="bufferedCount">0</span>
     </div>
+    
     <div class="token-section" id="tokenSection">
       <label>Auth Token (paste from app)</label>
       <input type="text" id="tokenInput" placeholder="eyJ..." />

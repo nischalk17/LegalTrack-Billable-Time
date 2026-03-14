@@ -1,0 +1,30 @@
+billable_backend  | 2026-03-14T17:18:24.677021076Z   table: undefined,
+billable_backend  | 2026-03-14T17:18:24.677024803Z   column: undefined,
+billable_backend  | 2026-03-14T17:18:24.677028531Z   dataType: undefined,
+billable_backend  | 2026-03-14T17:18:24.677032268Z   constraint: undefined,
+billable_backend  | 2026-03-14T17:18:24.677036026Z   file: 'parse_coerce.c',
+billable_backend  | 2026-03-14T17:18:24.677039774Z   line: '1224',
+billable_backend  | 2026-03-14T17:18:24.677043542Z   routine: 'coerce_to_specific_type_typmod'
+billable_backend  | 2026-03-14T17:18:24.677067080Z }
+billable_backend  | 2026-03-14T17:18:45.135157748Z List activities error: error: argument of OFFSET must be type bigint, not type date
+billable_backend  | 2026-03-14T17:18:45.137255746Z     at /app/node_modules/pg-pool/index.js:45:11
+billable_backend  | 2026-03-14T17:18:45.137319446Z     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+billable_backend  | 2026-03-14T17:18:45.137331842Z     at async /app/src/routes/activities.js:201:20 {
+billable_backend  | 2026-03-14T17:18:45.137343085Z   length: 140,
+billable_backend  | 2026-03-14T17:18:45.137354097Z   severity: 'ERROR',
+billable_backend  | 2026-03-14T17:18:45.137364940Z   code: '42804',
+billable_backend  | 2026-03-14T17:18:45.137376033Z   detail: undefined,
+billable_backend  | 2026-03-14T17:18:45.137386724Z   hint: undefined,
+billable_backend  | 2026-03-14T17:18:45.137397527Z   position: '223',
+billable_backend  | 2026-03-14T17:18:45.137408299Z   internalPosition: undefined,
+billable_backend  | 2026-03-14T17:18:45.137419191Z   internalQuery: undefined,
+billable_backend  | 2026-03-14T17:18:45.137429963Z   where: undefined,
+billable_backend  | 2026-03-14T17:18:45.137440595Z   schema: undefined,
+billable_backend  | 2026-03-14T17:18:45.137451437Z   table: undefined,
+billable_backend  | 2026-03-14T17:18:45.137462400Z   column: undefined,
+billable_backend  | 2026-03-14T17:18:45.137473282Z   dataType: undefined,
+billable_backend  | 2026-03-14T17:18:45.137484145Z   constraint: undefined,
+billable_backend  | 2026-03-14T17:18:45.137494866Z   file: 'parse_coerce.c',
+billable_backend  | 2026-03-14T17:18:45.137505669Z   line: '1224',
+billable_backend  | 2026-03-14T17:18:45.137519627Z   routine: 'coerce_to_specific_type_typmod'
+billable_backend  | 2026-03-14T17:18:45.137530630Z }

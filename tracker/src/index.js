@@ -18,14 +18,13 @@ if (!AUTH_TOKEN) {
 let currentActivity = null; // { appName, windowTitle, fileName, startTime }
 let activityBuffer  = [];   // Completed activities waiting to be sent
 let isRunning       = true;
+let currentSession  = null;
 
 // ── Helpers ───────────────────────────────────────────────────
 function extractFileName(title) {
-  // Try to extract filename from window title
-  // e.g. "Motion_Draft_v2.docx - Microsoft Word" → "Motion_Draft_v2.docx"
   const patterns = [
-    /^(.+?\.[a-zA-Z]{2,5})\s*[-–|]/,  // "file.ext - App"
-    /^(.+?\.[a-zA-Z]{2,5})$/,          // "file.ext"
+    /^(.+?\.[a-zA-Z]{2,5})\s*[-–|]/,
+    /^(.+?\.[a-zA-Z]{2,5})$/,
   ];
   for (const pattern of patterns) {
     const match = title?.match(pattern);
@@ -44,6 +43,23 @@ function isSameActivity(win) {
 
 function getDurationSeconds(startTime) {
   return Math.round((Date.now() - startTime) / 1000);
+}
+
+// ── Update Current Session ────────────────────────────────────
+async function updateSession() {
+  try {
+    const res = await fetch(`${API_URL}/api/sessions/active`, {
+      headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` }
+    });
+    if (res.ok) {
+      currentSession = await res.json();
+    } else {
+      currentSession = null;
+    }
+  } catch (err) {
+    // silently ignore and proceed as no active session
+    currentSession = null;
+  }
 }
 
 // ── Flush to backend ──────────────────────────────────────────
@@ -83,7 +99,7 @@ function endCurrentActivity() {
 
   const duration = getDurationSeconds(currentActivity.startTime);
   if (duration >= MIN_DURATION_SECONDS) {
-    activityBuffer.push({
+    const payload = {
       source_type: 'desktop',
       app_name: currentActivity.appName,
       window_title: currentActivity.windowTitle,
@@ -91,8 +107,15 @@ function endCurrentActivity() {
       start_time: new Date(currentActivity.startTime).toISOString(),
       end_time: new Date().toISOString(),
       duration_seconds: duration
-    });
-    console.log(`📋 Recorded: [${currentActivity.appName}] "${currentActivity.windowTitle}" (${duration}s)`);
+    };
+    
+    if (currentSession) {
+      payload.client_id = currentSession.client_id;
+      payload.matter = currentSession.matter;
+    }
+
+    activityBuffer.push(payload);
+    console.log(`📋 Recorded: [${currentActivity.appName}] "${currentActivity.windowTitle}" (${duration}s)${currentSession ? ` [Tagged to ${currentSession.client_name}]` : ''}`);
   }
   currentActivity = null;
 }
@@ -136,6 +159,10 @@ console.log(`   API: ${API_URL}`);
 console.log(`   Poll: every ${POLL_MS / 1000}s | Flush: every ${FLUSH_MS / 1000}s`);
 console.log('   Press Ctrl+C to stop\n');
 
+// start session cache loop (60 seconds)
+updateSession();
+const sessionInterval = setInterval(updateSession, 60000);
+
 const pollInterval  = setInterval(poll, POLL_MS);
 const flushInterval = setInterval(flushActivities, FLUSH_MS);
 
@@ -145,6 +172,7 @@ process.on('SIGINT', async () => {
   isRunning = false;
   clearInterval(pollInterval);
   clearInterval(flushInterval);
+  clearInterval(sessionInterval);
   endCurrentActivity();
   await flushActivities();
   console.log('👋 Done.');

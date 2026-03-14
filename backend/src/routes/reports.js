@@ -6,81 +6,51 @@ const PDFDocument = require('pdfkit');
 /**
  * @swagger
  * /api/reports/pdf:
- *   get:
- *     summary: Export Time Report as PDF
- *     tags: [Reports]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: date_from
- *         schema:
- *           type: string
- *           format: date
- *       - in: query
- *         name: date_to
- *         schema:
- *           type: string
- *           format: date
- *       - in: query
- *         name: client
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: PDF file stream
- *         content:
- *           application/pdf:
- *             schema:
- *               type: string
- *               format: binary
- *       500:
- *         description: Server error
  */
 router.get('/pdf', auth, async (req, res) => {
   try {
     const { date_from, date_to, client } = req.query;
 
-    // Fetch user details for header
     const userResult = await pool.query('SELECT name FROM users WHERE id = $1', [req.user.id]);
     const userName = userResult.rows[0]?.name || 'User';
 
-    // Build query conditions
-    let conditions = ['user_id = $1'];
+    let conditions = ['m.user_id = $1'];
     let params = [req.user.id];
     let idx = 2;
 
     if (date_from) {
-      conditions.push(`date >= $${idx++}`);
+      conditions.push(`m.date >= $${idx++}`);
       params.push(date_from);
     }
     if (date_to) {
-      conditions.push(`date <= $${idx++}`);
+      conditions.push(`m.date <= $${idx++}`);
       params.push(date_to);
     }
     if (client) {
-      conditions.push(`client ILIKE $${idx++}`);
+      // client parameter might be name or id depending on frontend string
+      // matching by client_id or generic client name string
+      conditions.push(`(m.client ILIKE $${idx} OR c.name ILIKE $${idx})`);
       params.push(`%${client}%`);
+      idx++;
     }
 
     const { rows } = await pool.query(
-      `SELECT * FROM manual_entries 
+      `SELECT m.*, c.name as relation_client_name 
+       FROM manual_entries m
+       LEFT JOIN clients c ON m.client_id = c.id
        WHERE ${conditions.join(' AND ')} 
-       ORDER BY client ASC NULLS LAST, matter ASC NULLS LAST, date ASC`,
+       ORDER BY c.name ASC NULLS LAST, m.client ASC NULLS LAST, m.matter ASC NULLS LAST, m.date ASC`,
       params
     );
 
-    // Prepare PDF Document
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
 
-    // Set response headers for PDF download
     const filename = `TimeReport_${date_from || 'All'}_${date_to || 'All'}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
     doc.pipe(res);
 
-    // Format helpers
     const formatDuration = (mins) => {
       const h = Math.floor(mins / 60);
       const m = mins % 60;
@@ -89,7 +59,6 @@ router.get('/pdf', auth, async (req, res) => {
       return `${h}h ${m}m`;
     };
 
-    // Header
     doc.font('Helvetica-Bold').fontSize(20).text(`Time Report — ${userName}`, { align: 'center' });
     doc.moveDown(0.5);
 
@@ -105,10 +74,9 @@ router.get('/pdf', auth, async (req, res) => {
 
     doc.fillColor('#000000');
     
-    // Grouping
     const grouped = {};
     rows.forEach(r => {
-      const c = r.client || 'Unknown Client';
+      const c = r.relation_client_name || r.client || 'Unknown Client';
       const m = r.matter || 'General Matter';
       if (!grouped[c]) grouped[c] = {};
       if (!grouped[c][m]) grouped[c][m] = [];
@@ -121,16 +89,13 @@ router.get('/pdf', auth, async (req, res) => {
       doc.font('Helvetica-Oblique').fontSize(12).text('No entries found for this period.', { align: 'center' });
     } else {
       for (const [cName, matters] of Object.entries(grouped)) {
-        // Client Heading
         doc.font('Helvetica-Bold').fontSize(14).text(cName);
         doc.moveDown(0.5);
 
         for (const [mName, entries] of Object.entries(matters)) {
-          // Matter Subheading
           doc.font('Helvetica-Oblique').fontSize(12).text(mName, { indent: 10 });
           doc.moveDown(0.5);
 
-          // Table Header
           const startY = doc.y;
           doc.font('Helvetica-Bold').fontSize(10);
           doc.text('Date', 60, startY, { width: 70 });
@@ -163,7 +128,6 @@ router.get('/pdf', auth, async (req, res) => {
 
           grandTotalMins += matterTotalMins;
 
-          // Subtotal per Matter
           doc.moveDown(0.5);
           doc.font('Helvetica-Bold');
           doc.text(`Subtotal (${mName}):`, 130, doc.y, { width: 230, align: 'right' });
@@ -173,7 +137,6 @@ router.get('/pdf', auth, async (req, res) => {
         }
       }
 
-      // Grand Total
       doc.moveDown(1);
       doc.moveTo(60, doc.y).lineTo(495, doc.y).lineWidth(2).stroke();
       doc.moveDown(0.5);
@@ -185,7 +148,6 @@ router.get('/pdf', auth, async (req, res) => {
     doc.end();
 
   } catch (err) {
-    console.error('PDF Report Generation Error:', err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Server error generating PDF' });
     }

@@ -8,6 +8,7 @@ const FLUSH_INTERVAL_MINUTES = 1; // Send batch every 1 minute
 
 let currentSession = null;   // { tabId, title, domain, url, startTime }
 let activityBuffer = [];     // Pending activities to send
+let activeSession = null;
 
 // ── Helpers ──────────────────────────────────────────────────
 function extractDomain(url) {
@@ -20,6 +21,36 @@ function extractDomain(url) {
 
 function getDurationSeconds(startTime) {
   return Math.round((Date.now() - startTime) / 1000);
+}
+
+// ── Auth helpers ──────────────────────────────────────────────
+async function getToken() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['auth_token'], (result) => {
+      resolve(result.auth_token || null);
+    });
+  });
+}
+
+// ── Active Matter Sync ────────────────────────────────────────
+async function getActiveSession() {
+  const token = await getToken();
+  if (!token) {
+    activeSession = null;
+    return;
+  }
+  try {
+    const res = await fetch(`${API_URL}/api/sessions/active`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      activeSession = await res.json();
+    } else {
+      activeSession = null;
+    }
+  } catch (err) {
+    activeSession = null;
+  }
 }
 
 // ── Flush buffer to backend ───────────────────────────────────
@@ -47,7 +78,6 @@ async function flushActivities() {
 
     if (!response.ok) {
       console.error('Failed to send activities:', response.status);
-      // Put them back in buffer on failure
       activityBuffer = [...toSend, ...activityBuffer];
     } else {
       console.log(`✅ Sent ${toSend.length} activities`);
@@ -63,7 +93,7 @@ function endCurrentSession() {
   if (!currentSession) return;
 
   const duration = getDurationSeconds(currentSession.startTime);
-  if (duration < 5) { // Skip sessions under 5 seconds
+  if (duration < 5) {
     currentSession = null;
     return;
   }
@@ -77,7 +107,9 @@ function endCurrentSession() {
     url: currentSession.url,
     start_time: new Date(currentSession.startTime).toISOString(),
     end_time: endTime,
-    duration_seconds: duration
+    duration_seconds: duration,
+    client_id: activeSession?.client_id || null,
+    matter: activeSession?.matter || null
   });
 
   currentSession = null;
@@ -88,6 +120,8 @@ function startSession(tab) {
   if (!tab || !tab.url || tab.url.startsWith('chrome://')) return;
 
   endCurrentSession();
+  
+  getActiveSession();
 
   currentSession = {
     tabId: tab.id,
@@ -98,18 +132,8 @@ function startSession(tab) {
   };
 }
 
-// ── Auth helpers ──────────────────────────────────────────────
-async function getToken() {
-  return new Promise((resolve) => {
-    chrome.storage.local.get(['auth_token'], (result) => {
-      resolve(result.auth_token || null);
-    });
-  });
-}
-
 // ── Event Listeners ───────────────────────────────────────────
 
-// Tab activated (user switches tabs)
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   try {
     const tab = await chrome.tabs.get(activeInfo.tabId);
@@ -119,17 +143,14 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
   }
 });
 
-// Tab updated (navigation / page load)
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.active) {
     startSession(tab);
   }
 });
 
-// Window focus changed
 chrome.windows.onFocusChanged.addListener(async (windowId) => {
   if (windowId === chrome.windows.WINDOW_ID_NONE) {
-    // Browser lost focus
     endCurrentSession();
     await flushActivities();
     return;
@@ -142,7 +163,6 @@ chrome.windows.onFocusChanged.addListener(async (windowId) => {
   }
 });
 
-// Tab closed
 chrome.tabs.onRemoved.addListener((tabId) => {
   if (currentSession?.tabId === tabId) {
     endCurrentSession();
@@ -154,7 +174,6 @@ chrome.alarms.create('flush_activities', { periodInMinutes: FLUSH_INTERVAL_MINUT
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'flush_activities') {
-    // End and restart current session to record partial time
     if (currentSession) {
       const duration = getDurationSeconds(currentSession.startTime);
       if (duration >= 5) {
@@ -167,9 +186,10 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
           url: currentSession.url,
           start_time: new Date(currentSession.startTime).toISOString(),
           end_time: endTime,
-          duration_seconds: duration
+          duration_seconds: duration,
+          client_id: activeSession?.client_id || null,
+          matter: activeSession?.matter || null
         });
-        // Restart session from now
         currentSession.startTime = Date.now();
       }
     }
@@ -194,12 +214,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'FORCE_FLUSH') {
     endCurrentSession();
     flushActivities().then(() => sendResponse({ success: true }));
-    return true; // async response
+    return true;
   }
 
   if (message.type === 'SET_TOKEN') {
     chrome.storage.local.set({ auth_token: message.token }, () => {
       sendResponse({ success: true });
+    });
+    return true;
+  }
+  
+  if (message.type === 'GET_SESSION') {
+    getActiveSession().then(() => {
+      sendResponse({ activeSession });
     });
     return true;
   }

@@ -26,7 +26,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return data;
 }
 
-// ── Auth ──────────────────────────────────────────────────────
 export const auth = {
   login: (email: string, password: string) =>
     request<{ token: string; user: User }>('/api/auth/login', {
@@ -39,7 +38,6 @@ export const auth = {
   me: () => request<User>('/api/auth/me'),
 };
 
-// ── Activities ─────────────────────────────────────────────────
 export const activities = {
   list: (params?: { source_type?: string; date?: string; limit?: number; offset?: number }) => {
     const q = new URLSearchParams(params as any).toString();
@@ -49,9 +47,11 @@ export const activities = {
     const q = date ? `?date=${date}` : '';
     return request<ActivityStats>(`/api/activities/stats${q}`);
   },
+  getUntaggedCount: () => request<{ count: number }>('/api/activities/untagged'),
+  assign: (id: string, data: { client_id: string; matter?: string }) =>
+    request<Activity>(`/api/activities/${id}/assign`, { method: 'PATCH', body: JSON.stringify(data) })
 };
 
-// ── Manual Entries ─────────────────────────────────────────────
 export const entries = {
   list: (params?: { client?: string; date?: string; limit?: number }) => {
     const q = new URLSearchParams(params as any).toString();
@@ -65,7 +65,6 @@ export const entries = {
     request<{ message: string }>(`/api/entries/${id}`, { method: 'DELETE' }),
 };
 
-// ── Suggestions ───────────────────────────────────────────────
 export const suggestions = {
   list: (params?: { status?: string; date?: string }) => {
     const q = new URLSearchParams(params as any).toString();
@@ -83,7 +82,6 @@ export const suggestions = {
     request<BillableSuggestion>(`/api/suggestions/${id}/dismiss`, { method: 'PATCH' }),
 };
 
-// ── Clients ───────────────────────────────────────────────────
 export const clients = {
   list: () => request<Client[]>('/api/clients'),
   get: (id: string) => request<Client & { total_billed: number }>(`/api/clients/${id}`),
@@ -92,11 +90,10 @@ export const clients = {
   delete: (id: string) => request<{ message: string; id: string }>(`/api/clients/${id}`, { method: 'DELETE' }),
 };
 
-// ── Bills ─────────────────────────────────────────────────────
 export const bills = {
   list: () => request<Bill[]>('/api/bills'),
   get: (id: string) => request<Bill & { line_items: BillLineItem[] }>(`/api/bills/${id}`),
-  generate: (data: { client_id: string; date_from: string; date_to: string; matter?: string }) => 
+  generate: (data: { client_id: string; date_from: string; date_to: string; matter?: string; include_tracked_activities?: boolean }) => 
     request<Bill & { line_items: BillLineItem[] }>('/api/bills/generate', { method: 'POST', body: JSON.stringify(data) }),
   updateStatus: (id: string, status: 'draft' | 'sent' | 'paid') => 
     request<Bill>(`/api/bills/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
@@ -111,15 +108,28 @@ export const bills = {
   }
 };
 
-// ── Types ─────────────────────────────────────────────────────
-export interface User {
-  id: string; email: string; name: string; created_at: string;
-}
+export const rules = {
+  list: () => request<TrackingRule[]>('/api/rules'),
+  create: (data: Partial<TrackingRule>) => request<TrackingRule>('/api/rules', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<TrackingRule>) => request<TrackingRule>(`/api/rules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => request<{ message: string }>(`/api/rules/${id}`, { method: 'DELETE' }),
+  test: (data: { domain?: string; app_name?: string; window_title?: string; file_name?: string }) => 
+    request<{ match: boolean; rule: TrackingRule | null; client_name?: string; matter?: string }>('/api/rules/test', { method: 'POST', body: JSON.stringify(data) })
+};
+
+export const sessions = {
+  active: () => request<ActiveSession | null>('/api/sessions/active'),
+  start: (data: { client_id: string; matter?: string }) => request<ActiveSession>('/api/sessions/start', { method: 'POST', body: JSON.stringify(data) }),
+  end: () => request<ActiveSession | { message: string }>('/api/sessions/end', { method: 'POST' }),
+};
+
+export interface User { id: string; email: string; name: string; created_at: string; }
 export interface Activity {
   id: string; user_id: string; source_type: 'browser' | 'desktop';
   app_name: string; window_title: string; domain: string;
   file_name: string; url: string;
   start_time: string; end_time: string; duration_seconds: number;
+  client_id: string | null; matter: string | null; client_name?: string;
   created_at: string;
 }
 export interface ActivityStats {
@@ -128,7 +138,7 @@ export interface ActivityStats {
   top_apps: { app_name: string; total_seconds: string }[];
 }
 export interface ManualEntry {
-  id: string; user_id: string; client: string; matter: string;
+  id: string; user_id: string; client: string; matter: string; client_id?: string | null;
   description: string; date: string; duration_minutes: number;
   source_type: string; notes: string;
   created_at: string; updated_at: string;
@@ -156,8 +166,17 @@ export interface Bill {
   client_name?: string;
 }
 export interface BillLineItem {
-  id: string; bill_id: string; entry_id: string; description: string;
+  id: string; bill_id: string; entry_id: string; description: string; source: 'manual' | 'tracked';
   date: string; duration_minutes: number; hourly_rate_npr: number; amount_npr: number;
 }
-
+export interface TrackingRule {
+  id: string; user_id: string; client_id: string; matter: string;
+  rule_type: 'domain' | 'app_name' | 'window_title' | 'file_extension';
+  pattern: string; match_type: 'exact' | 'contains' | 'starts_with';
+  priority: number; created_at: string; client_name?: string;
+}
+export interface ActiveSession {
+  id: string; user_id: string; client_id: string; matter: string;
+  started_at: string; ended_at: string; is_active: boolean; client_name?: string;
+}
 export { getToken };

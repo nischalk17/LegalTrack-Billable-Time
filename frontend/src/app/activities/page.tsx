@@ -1,4 +1,5 @@
 'use client';
+export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
 import { activities, clients, Client, Activity } from '@/lib/api';
 import { Globe, Monitor, RefreshCw, ChevronDown } from 'lucide-react';

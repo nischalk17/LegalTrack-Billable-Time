@@ -1,4 +1,5 @@
 'use client';
+export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
 import { suggestions, BillableSuggestion } from '@/lib/api';
 import { Zap, Check, X, RefreshCw } from 'lucide-react';

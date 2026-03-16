@@ -1,4 +1,5 @@
 'use client';
+export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
 import { rules, clients, TrackingRule, Client } from '@/lib/api';
 import { Trash2, Edit, Plus, Check } from 'lucide-react';

@@ -6,6 +6,49 @@ const PDFDocument = require('pdfkit');
 /**
  * @swagger
  * /api/reports/pdf:
+ *   get:
+ *     tags: [Reports]
+ *     summary: Download a PDF time report
+ *     description: |
+ *       Generates a PDF time report from manual entries.
+ *
+ *       The response is a binary PDF (`application/pdf`) suitable for download.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: date_from
+ *         description: Include entries on/after this date (YYYY-MM-DD)
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: date_to
+ *         description: Include entries on/before this date (YYYY-MM-DD)
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: client
+ *         description: Filter by client name (partial match). Accepts a string.
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: PDF generated
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error generating PDF
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/pdf', auth, async (req, res) => {
   try {

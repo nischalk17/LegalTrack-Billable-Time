@@ -3,6 +3,79 @@ const pool = require('../db/pool');
 const auth = require('../middleware/auth');
 const PDFDocument = require('pdfkit');
 
+/**
+ * @swagger
+ * /api/bills/generate:
+ *   post:
+ *     tags: [Bills]
+ *     summary: Generate a bill (draft)
+ *     description: Generates a draft bill from manual entries for a client and date range.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [client_id, date_from, date_to]
+ *             properties:
+ *               client_id: { type: string, format: uuid }
+ *               date_from: { type: string, format: date }
+ *               date_to: { type: string, format: date }
+ *               matter: { type: string, nullable: true, description: Optional matter filter (partial match). }
+ *               include_tracked_activities:
+ *                 type: boolean
+ *                 nullable: true
+ *                 description: Currently unused by route logic; reserved for future use.
+ *           examples:
+ *             generate:
+ *               value:
+ *                 client_id: "9b6b62e2-1d7a-4a3a-b8c3-2e8b1c4f0f11"
+ *                 date_from: "2026-03-01"
+ *                 date_to: "2026-03-16"
+ *                 matter: "Contract"
+ *     responses:
+ *       201:
+ *         description: Bill generated (draft) with line items
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/Bill'
+ *                 - type: object
+ *                   properties:
+ *                     line_items:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/BillLineItem'
+ *       400:
+ *         description: Missing required fields or no entries found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             examples:
+ *               missing:
+ *                 value: { error: "client_id, date_from, and date_to are required" }
+ *               none:
+ *                 value: { error: "No entries found for this period" }
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Client not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server error generating bill
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+
 // POST /api/bills/generate - Generate a bill
 router.post('/generate', auth, async (req, res) => {
   const { client_id, date_from, date_to, matter, include_tracked_activities } = req.body;
@@ -88,6 +161,34 @@ router.post('/generate', auth, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/bills:
+ *   get:
+ *     tags: [Bills]
+ *     summary: List bills
+ *     description: Returns all bills for the authenticated user.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Array of bills
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Bill'
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+
 // GET /api/bills - List all bills
 router.get('/', auth, async (req, res) => {
   try {
@@ -102,6 +203,46 @@ router.get('/', auth, async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
+/**
+ * @swagger
+ * /api/bills/{id}:
+ *   get:
+ *     tags: [Bills]
+ *     summary: Get a bill (with line items)
+ *     description: Returns a single bill (owned by user) plus line items.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: Bill UUID
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Bill with line items
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/BillWithLineItems'
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Bill not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 
 // GET /api/bills/:id - Get single bill with line items
 router.get('/:id', auth, async (req, res) => {
@@ -121,6 +262,69 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/bills/{id}/status:
+ *   patch:
+ *     tags: [Bills]
+ *     summary: Update bill status
+ *     description: Updates the status of a bill (draft/sent/paid).
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: Bill UUID
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [status]
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [draft, sent, paid]
+ *           examples:
+ *             sent:
+ *               value: { status: "sent" }
+ *     responses:
+ *       200:
+ *         description: Updated bill
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Bill'
+ *       400:
+ *         description: Invalid status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             examples:
+ *               invalid:
+ *                 value: { error: "Invalid status" }
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Bill not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+
 // PATCH /api/bills/:id/status
 router.patch('/:id/status', auth, async (req, res) => {
   const { status } = req.body;
@@ -136,6 +340,51 @@ router.patch('/:id/status', auth, async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
+/**
+ * @swagger
+ * /api/bills/{id}:
+ *   delete:
+ *     tags: [Bills]
+ *     summary: Delete a draft bill
+ *     description: Deletes a bill if it belongs to the user and is still in draft status.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: Bill UUID
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Bill deleted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message: { type: string, example: "Bill deleted" }
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Bill not found or not draft
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             examples:
+ *               notFound:
+ *                 value: { error: "Bill not found or not draft" }
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 
 // DELETE /api/bills/:id
 router.delete('/:id', auth, async (req, res) => {
@@ -155,6 +404,46 @@ const formatNPR = (amount) => 'Rs. ' + amount.toLocaleString('en-IN');
 const formatDuration = (mins) => `${Math.floor(mins / 60)}h ${mins % 60}m`;
 
 // GET /api/bills/:id/pdf
+/**
+ * @swagger
+ * /api/bills/{id}/pdf:
+ *   get:
+ *     tags: [Bills]
+ *     summary: Download bill PDF
+ *     description: Generates and downloads a PDF invoice for the specified bill.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: Bill UUID
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: PDF invoice
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Bill not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 router.get('/:id/pdf', auth, async (req, res) => {
   try {
     const billRes = await pool.query(

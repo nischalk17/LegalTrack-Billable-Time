@@ -3,7 +3,7 @@ import './globals.css';
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Clock, FileText, Lightbulb, LogOut, Scale, Users, Sliders } from 'lucide-react';
+import { LayoutDashboard, Clock, FileText, Lightbulb, LogOut, Scale, Users, Sliders, BarChart2 } from 'lucide-react';
 import { activities } from '@/lib/api';
 import ActiveSessionBar from '@/components/ActiveSessionBar';
 
@@ -40,6 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     { href: '/entries',     label: 'Time Entries', icon: FileText },
     { href: '/clients',     label: 'Clients',     icon: Users },
     { href: '/suggestions', label: 'Suggestions', icon: Lightbulb },
+    { href: '/analytics',   label: 'Analytics',   icon: BarChart2 },
   ];
 
   return (

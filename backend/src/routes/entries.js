@@ -18,6 +18,7 @@ const entryValidation = [
  * /api/entries:
  *   post:
  *     summary: Create a manual time entry
+ *     description: Creates a manual time entry for the authenticated user.
  *     tags: [Entries]
  *     security:
  *       - bearerAuth: []
@@ -50,13 +51,37 @@ const entryValidation = [
  *                 enum: [manual, browser, desktop, suggestion]
  *               notes:
  *                 type: string
+ *           examples:
+ *             create:
+ *               value:
+ *                 client: "Acme Corp"
+ *                 matter: "Contract Review"
+ *                 description: "Reviewed agreement and marked redlines"
+ *                 date: "2026-03-16"
+ *                 duration_minutes: 90
+ *                 source_type: "manual"
+ *                 notes: "Follow up on clause 4."
  *     responses:
  *       201:
  *         description: Entry created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ManualEntry'
  *       400:
  *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ValidationErrorResponse'
+ *       401:
+ *         description: Unauthorized
  *       500:
  *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 // POST /api/entries - Create manual entry
 router.post('/', auth, entryValidation, async (req, res) => {
@@ -84,6 +109,7 @@ router.post('/', auth, entryValidation, async (req, res) => {
  * /api/entries:
  *   get:
  *     summary: List all manual entries for user
+ *     description: Returns manual entries for the authenticated user with optional filtering and pagination.
  *     tags: [Entries]
  *     security:
  *       - bearerAuth: []
@@ -113,8 +139,26 @@ router.post('/', auth, entryValidation, async (req, res) => {
  *     responses:
  *       200:
  *         description: List of entries
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 entries:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/ManualEntry'
+ *                 total:
+ *                   type: integer
+ *                   example: 12
+ *       401:
+ *         description: Unauthorized
  *       500:
  *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 // GET /api/entries - List all entries for user
 router.get('/', auth, async (req, res) => {
@@ -164,6 +208,7 @@ router.get('/', auth, async (req, res) => {
  * /api/entries/{id}:
  *   get:
  *     summary: Get a single manual entry
+ *     description: Returns a single manual entry owned by the authenticated user.
  *     tags: [Entries]
  *     security:
  *       - bearerAuth: []
@@ -172,14 +217,29 @@ router.get('/', auth, async (req, res) => {
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
+ *           format: uuid
  *     responses:
  *       200:
  *         description: Entry details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ManualEntry'
+ *       401:
+ *         description: Unauthorized
  *       404:
  *         description: Entry not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 // GET /api/entries/:id - Get single entry
 router.get('/:id', auth, async (req, res) => {
@@ -200,6 +260,7 @@ router.get('/:id', auth, async (req, res) => {
  * /api/entries/{id}:
  *   put:
  *     summary: Update an existing manual entry
+ *     description: Updates an existing manual entry owned by the authenticated user.
  *     tags: [Entries]
  *     security:
  *       - bearerAuth: []
@@ -208,7 +269,8 @@ router.get('/:id', auth, async (req, res) => {
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
+ *           format: uuid
  *     requestBody:
  *       required: true
  *       content:
@@ -241,12 +303,30 @@ router.get('/:id', auth, async (req, res) => {
  *     responses:
  *       200:
  *         description: Entry updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ManualEntry'
  *       400:
  *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ValidationErrorResponse'
+ *       401:
+ *         description: Unauthorized
  *       404:
  *         description: Entry not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 // PUT /api/entries/:id - Update entry
 router.put('/:id', auth, entryValidation, async (req, res) => {
@@ -278,6 +358,7 @@ router.put('/:id', auth, entryValidation, async (req, res) => {
  * /api/entries/{id}:
  *   delete:
  *     summary: Delete a manual entry
+ *     description: Deletes a manual entry owned by the authenticated user.
  *     tags: [Entries]
  *     security:
  *       - bearerAuth: []
@@ -286,14 +367,32 @@ router.put('/:id', auth, entryValidation, async (req, res) => {
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
+ *           format: uuid
  *     responses:
  *       200:
  *         description: Entry deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message: { type: string, example: "Entry deleted" }
+ *                 id: { type: string, format: uuid }
+ *       401:
+ *         description: Unauthorized
  *       404:
  *         description: Entry not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 // DELETE /api/entries/:id - Delete entry
 router.delete('/:id', auth, async (req, res) => {

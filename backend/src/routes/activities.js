@@ -9,7 +9,86 @@ const { convertActivityToEntry } = require('../utils/entryConverter');
  * @swagger
  * /api/activities:
  *   post:
+ *     tags: [Activities]
  *     summary: Ingest a single tracked activity
+ *     description: Ingest a single tracked activity event from a tracker client (browser/desktop).
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [source_type, start_time, end_time, duration_seconds]
+ *             properties:
+ *               source_type:
+ *                 type: string
+ *                 enum: [browser, desktop]
+ *               app_name:
+ *                 type: string
+ *                 nullable: true
+ *               window_title:
+ *                 type: string
+ *                 nullable: true
+ *               domain:
+ *                 type: string
+ *                 nullable: true
+ *               file_name:
+ *                 type: string
+ *                 nullable: true
+ *               url:
+ *                 type: string
+ *                 nullable: true
+ *               start_time:
+ *                 type: string
+ *                 format: date-time
+ *               end_time:
+ *                 type: string
+ *                 format: date-time
+ *               duration_seconds:
+ *                 type: integer
+ *                 minimum: 0
+ *                 description: Duration in seconds (some clients may send ms; server normalizes).
+ *               client_id:
+ *                 type: string
+ *                 format: uuid
+ *                 nullable: true
+ *               matter:
+ *                 type: string
+ *                 nullable: true
+ *           examples:
+ *             browser:
+ *               value:
+ *                 source_type: browser
+ *                 app_name: "Chrome"
+ *                 window_title: "Westlaw - Search Results"
+ *                 domain: "westlaw.com"
+ *                 url: "https://westlaw.com/..."
+ *                 start_time: "2026-03-16T10:00:00.000Z"
+ *                 end_time: "2026-03-16T10:05:00.000Z"
+ *                 duration_seconds: 300
+ *     responses:
+ *       201:
+ *         description: Activity ingested
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TrackedActivity'
+ *       400:
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ValidationErrorResponse'
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/', auth, [
   body('source_type').isIn(['browser', 'desktop']),
@@ -27,6 +106,22 @@ router.post('/', auth, [
   } = req.body;
 
   try {
+    // Normalize duration to seconds (some clients may send milliseconds).
+    const startMs = Date.parse(start_time);
+    const endMs = Date.parse(end_time);
+    const deltaSeconds = Number.isFinite(startMs) && Number.isFinite(endMs)
+      ? Math.max(0, Math.round((endMs - startMs) / 1000))
+      : null;
+    const providedSeconds = Number(duration_seconds);
+    const normalizedDurationSeconds =
+      typeof deltaSeconds === 'number' && deltaSeconds > 0 && Number.isFinite(providedSeconds)
+        ? (Math.abs(providedSeconds - deltaSeconds) <= 5
+            ? providedSeconds
+            : (Math.abs(providedSeconds / 1000 - deltaSeconds) <= 5
+                ? Math.round(providedSeconds / 1000)
+                : providedSeconds))
+        : providedSeconds;
+
     let final_client_id = req_client_id || null;
     let final_matter = req_matter || null;
 
@@ -60,7 +155,7 @@ router.post('/', auth, [
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        RETURNING *`,
       [req.user.id, source_type, app_name, window_title, domain, file_name, url,
-       start_time, end_time, duration_seconds, final_client_id, final_matter]
+       start_time, end_time, normalizedDurationSeconds, final_client_id, final_matter]
     );
 
     if (final_client_id) {
@@ -78,7 +173,75 @@ router.post('/', auth, [
  * @swagger
  * /api/activities/batch:
  *   post:
+ *     tags: [Activities]
  *     summary: Ingest multiple activities at once
+ *     description: Ingest multiple tracked activity events in a single request.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [activities]
+ *             properties:
+ *               activities:
+ *                 type: array
+ *                 minItems: 1
+ *                 items:
+ *                   type: object
+ *                   required: [source_type, start_time, end_time, duration_seconds]
+ *                   properties:
+ *                     source_type: { type: string, enum: [browser, desktop] }
+ *                     app_name: { type: string, nullable: true }
+ *                     window_title: { type: string, nullable: true }
+ *                     domain: { type: string, nullable: true }
+ *                     file_name: { type: string, nullable: true }
+ *                     url: { type: string, nullable: true }
+ *                     start_time: { type: string, format: date-time }
+ *                     end_time: { type: string, format: date-time }
+ *                     duration_seconds: { type: integer, minimum: 0 }
+ *                     client_id: { type: string, format: uuid, nullable: true }
+ *                     matter: { type: string, nullable: true }
+ *           examples:
+ *             batch:
+ *               value:
+ *                 activities:
+ *                   - source_type: desktop
+ *                     app_name: "Microsoft Word"
+ *                     window_title: "Motion_Draft_v2.docx"
+ *                     file_name: "Motion_Draft_v2.docx"
+ *                     start_time: "2026-03-16T10:00:00.000Z"
+ *                     end_time: "2026-03-16T10:15:00.000Z"
+ *                     duration_seconds: 900
+ *     responses:
+ *       201:
+ *         description: Activities ingested
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 inserted: { type: integer, example: 1 }
+ *                 activities:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/TrackedActivity'
+ *       400:
+ *         description: Bad request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/batch', auth, async (req, res) => {
   const { activities } = req.body;
@@ -121,13 +284,29 @@ router.post('/batch', auth, async (req, res) => {
         }
       }
 
+      // Normalize duration to seconds (some clients may send milliseconds).
+      const aStartMs = Date.parse(a.start_time);
+      const aEndMs = Date.parse(a.end_time);
+      const aDeltaSeconds = Number.isFinite(aStartMs) && Number.isFinite(aEndMs)
+        ? Math.max(0, Math.round((aEndMs - aStartMs) / 1000))
+        : null;
+      const aProvidedSeconds = Number(a.duration_seconds);
+      const aNormalizedDurationSeconds =
+        typeof aDeltaSeconds === 'number' && aDeltaSeconds > 0 && Number.isFinite(aProvidedSeconds)
+          ? (Math.abs(aProvidedSeconds - aDeltaSeconds) <= 5
+              ? aProvidedSeconds
+              : (Math.abs(aProvidedSeconds / 1000 - aDeltaSeconds) <= 5
+                  ? Math.round(aProvidedSeconds / 1000)
+                  : aProvidedSeconds))
+          : aProvidedSeconds;
+
       const r = await client.query(
         `INSERT INTO tracked_activities
           (user_id, source_type, app_name, window_title, domain, file_name, url, start_time, end_time, duration_seconds, client_id, matter)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
          RETURNING *`,
         [req.user.id, a.source_type, a.app_name, a.window_title, a.domain,
-         a.file_name, a.url, a.start_time, a.end_time, a.duration_seconds, final_client_id, final_matter]
+         a.file_name, a.url, a.start_time, a.end_time, aNormalizedDurationSeconds, final_client_id, final_matter]
       );
 
       if (final_client_id) {
@@ -148,6 +327,33 @@ router.post('/batch', auth, async (req, res) => {
 });
 
 // GET /api/activities/untagged -> Return count of untagged activities past 7 days
+/**
+ * @swagger
+ * /api/activities/untagged:
+ *   get:
+ *     tags: [Activities]
+ *     summary: Count untagged activities
+ *     description: Returns the count of untagged (client_id is null) tracked activities in the past 7 days.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Count returned
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 count: { type: integer, example: 12 }
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 router.get('/untagged', auth, async (req, res) => {
   try {
     const result = await pool.query(
@@ -163,6 +369,66 @@ router.get('/untagged', auth, async (req, res) => {
 });
 
 // PATCH /api/activities/:id/assign
+/**
+ * @swagger
+ * /api/activities/{id}/assign:
+ *   patch:
+ *     tags: [Activities]
+ *     summary: Assign activity to client/matter
+ *     description: Assigns a tracked activity to a client (and optional matter). Also auto-converts to a manual entry.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: Activity UUID
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [client_id]
+ *             properties:
+ *               client_id: { type: string, format: uuid }
+ *               matter: { type: string, nullable: true }
+ *           examples:
+ *             assign:
+ *               value:
+ *                 client_id: "9b6b62e2-1d7a-4a3a-b8c3-2e8b1c4f0f11"
+ *                 matter: "Contract Review"
+ *     responses:
+ *       200:
+ *         description: Updated activity
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TrackedActivity'
+ *       400:
+ *         description: Missing required fields
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Activity not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 router.patch('/:id/assign', auth, async (req, res) => {
   const { client_id, matter } = req.body;
   if (!client_id) return res.status(400).json({ error: 'client_id is required' });
@@ -187,6 +453,70 @@ router.patch('/:id/assign', auth, async (req, res) => {
  * @swagger
  * /api/activities:
  *   get:
+ *     tags: [Activities]
+ *     summary: List tracked activities
+ *     description: Returns tracked activities for the authenticated user with optional filters.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: source_type
+ *         description: Filter by source type
+ *         schema:
+ *           type: string
+ *           enum: [browser, desktop]
+ *       - in: query
+ *         name: date
+ *         description: Filter by activity start date (YYYY-MM-DD)
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 200
+ *           default: 50
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *     responses:
+ *       200:
+ *         description: Paginated activities
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 activities:
+ *                   type: array
+ *                   items:
+ *                     allOf:
+ *                       - $ref: '#/components/schemas/TrackedActivity'
+ *                       - type: object
+ *                         properties:
+ *                           client_name: { type: string, nullable: true }
+ *                 total: { type: integer, example: 123 }
+ *                 limit: { type: integer, example: 50 }
+ *                 offset: { type: integer, example: 0 }
+ *       400:
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ValidationErrorResponse'
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/', auth, [
   query('source_type').optional().isIn(['browser', 'desktop']),
@@ -246,6 +576,51 @@ router.get('/', auth, [
  * @swagger
  * /api/activities/stats:
  *   get:
+ *     tags: [Activities]
+ *     summary: Activity stats for a date
+ *     description: Returns aggregated activity stats grouped by source type, plus top apps for a specific date.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         description: Target date (YYYY-MM-DD). Defaults to today.
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: Stats result
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 date: { type: string, format: date }
+ *                 by_source:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       source_type: { type: string, enum: [browser, desktop] }
+ *                       event_count: { type: string, example: "42" }
+ *                       total_seconds: { type: string, example: "3600" }
+ *                       total_hours: { type: string, example: "1.00" }
+ *                 top_apps:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       app_name: { type: string }
+ *                       total_seconds: { type: string, example: "1800" }
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/stats', auth, async (req, res) => {
   const { date } = req.query;

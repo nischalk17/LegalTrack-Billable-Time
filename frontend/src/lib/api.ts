@@ -123,6 +123,15 @@ export const sessions = {
   end: () => request<ActiveSession | { message: string }>('/api/sessions/end', { method: 'POST' }),
 };
 
+export const analytics = {
+  getDaily: (date: string) => request<any>(`/api/analytics/daily?date=${date}`),
+  getClients: (from: string, to: string) => request<any>(`/api/analytics/clients?date_from=${from}&date_to=${to}`),
+  getRevenue: (period: string) => request<any>(`/api/analytics/revenue?period=${period}`),
+  getCategories: (from: string, to: string) => request<any>(`/api/analytics/categories?date_from=${from}&date_to=${to}`),
+  getWeekly: (weeks: number) => request<any>(`/api/analytics/weekly?weeks=${weeks}`),
+  getBillsStatus: () => request<any>('/api/analytics/bills-status'),
+};
+
 export interface User { id: string; email: string; name: string; created_at: string; }
 export interface Activity {
   id: string; user_id: string; source_type: 'browser' | 'desktop';

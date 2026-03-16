@@ -241,3 +241,4 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 console.log('🔍 Billable Tracker extension started');
+

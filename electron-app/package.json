@@ -1,0 +1,40 @@
+{
+  "name": "legaltrack-desktop",
+  "version": "1.0.0",
+  "description": "LegalTrack Desktop — Automatic billable time tracker",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder build --win --x64",
+    "build:installer": "electron-builder build --win nsis --x64"
+  },
+  "dependencies": {
+    "active-win": "^8.1.1",
+    "electron-store": "^8.1.0",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId": "com.legaltrack.desktop",
+    "productName": "LegalTrack",
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": true,
+      "shortcutName": "LegalTrack",
+      "include": "build/installer.nsh"
+    },
+    "extraResources": [
+      { "from": "extension/", "to": "extension/", "filter": ["**/*"] }
+    ]
+  }
+}
+

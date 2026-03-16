@@ -1,24 +1,27 @@
-import 'dotenv/config';
-import activeWin from 'active-win';
-import fetch from 'node-fetch';
+require('dotenv').config();
+const activeWin = require('active-win');
+const fetch = require('node-fetch');
 
 // ── Config ────────────────────────────────────────────────────
-const API_URL    = process.env.API_URL    || 'http://localhost:4000';
-const AUTH_TOKEN = process.env.AUTH_TOKEN || '';
-const POLL_MS    = parseInt(process.env.POLL_MS || '10000');  // Poll every 10s
-const FLUSH_MS   = parseInt(process.env.FLUSH_MS || '60000'); // Flush every 60s
+const DEFAULT_API_URL = process.env.API_URL || 'http://localhost:4000';
+const DEFAULT_POLL_MS = parseInt(process.env.POLL_MS || '10000');  // Poll every 10s
+const DEFAULT_FLUSH_MS = parseInt(process.env.FLUSH_MS || '60000'); // Flush every 60s
 const MIN_DURATION_SECONDS = 10; // Skip tiny blips
-
-if (!AUTH_TOKEN) {
-  console.error('❌ AUTH_TOKEN is required. Set it in .env');
-  process.exit(1);
-}
 
 // ── State ─────────────────────────────────────────────────────
 let currentActivity = null; // { appName, windowTitle, fileName, startTime }
 let activityBuffer  = [];   // Completed activities waiting to be sent
 let isRunning       = true;
 let currentSession  = null;
+let pollInterval = null;
+let flushInterval = null;
+let sessionInterval = null;
+let getAuthToken = () => process.env.AUTH_TOKEN || '';
+let getIsPaused = () => false;
+let apiUrl = DEFAULT_API_URL;
+let pollMs = DEFAULT_POLL_MS;
+let flushMs = DEFAULT_FLUSH_MS;
+let onAuthError = () => {};
 
 // ── Helpers ───────────────────────────────────────────────────
 function extractFileName(title) {
@@ -48,11 +51,20 @@ function getDurationSeconds(startTime) {
 // ── Update Current Session ────────────────────────────────────
 async function updateSession() {
   try {
-    const res = await fetch(`${API_URL}/api/sessions/active`, {
-      headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` }
+    const token = getAuthToken();
+    if (!token) {
+      currentSession = null;
+      return;
+    }
+
+    const res = await fetch(`${apiUrl}/api/sessions/active`, {
+      headers: { 'Authorization': `Bearer ${token}` }
     });
     if (res.ok) {
       currentSession = await res.json();
+    } else if (res.status === 401) {
+      currentSession = null;
+      onAuthError();
     } else {
       currentSession = null;
     }
@@ -66,20 +78,27 @@ async function updateSession() {
 async function flushActivities() {
   if (activityBuffer.length === 0) return;
 
+  const token = getAuthToken();
+  if (!token) {
+    // Keep buffer; caller should handle re-auth.
+    return;
+  }
+
   const toSend = [...activityBuffer];
   activityBuffer = [];
 
   try {
-    const res = await fetch(`${API_URL}/api/activities/batch`, {
+    const res = await fetch(`${apiUrl}/api/activities/batch`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${AUTH_TOKEN}`
+        'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify({ activities: toSend })
     });
 
     if (!res.ok) {
+      if (res.status === 401) onAuthError();
       const err = await res.text();
       console.error(`❌ Flush failed (${res.status}):`, err);
       activityBuffer = [...toSend, ...activityBuffer]; // Put back
@@ -123,6 +142,8 @@ function endCurrentActivity() {
 // ── Poll active window ─────────────────────────────────────────
 async function poll() {
   if (!isRunning) return;
+  if (getIsPaused()) return;
+  if (!getAuthToken()) return;
 
   try {
     const win = await activeWin();
@@ -153,28 +174,67 @@ async function poll() {
   }
 }
 
-// ── Main loop ─────────────────────────────────────────────────
-console.log('🖥  Billable Tracker - Desktop (Windows)');
-console.log(`   API: ${API_URL}`);
-console.log(`   Poll: every ${POLL_MS / 1000}s | Flush: every ${FLUSH_MS / 1000}s`);
-console.log('   Press Ctrl+C to stop\n');
+function startTracker(options = {}) {
+  apiUrl = options.apiUrl || DEFAULT_API_URL;
+  pollMs = typeof options.pollMs === 'number' ? options.pollMs : DEFAULT_POLL_MS;
+  flushMs = typeof options.flushMs === 'number' ? options.flushMs : DEFAULT_FLUSH_MS;
+  getAuthToken = typeof options.getAuthToken === 'function' ? options.getAuthToken : getAuthToken;
+  getIsPaused = typeof options.getIsPaused === 'function' ? options.getIsPaused : getIsPaused;
+  onAuthError = typeof options.onAuthError === 'function' ? options.onAuthError : onAuthError;
 
-// start session cache loop (60 seconds)
-updateSession();
-const sessionInterval = setInterval(updateSession, 60000);
+  if (pollInterval || flushInterval || sessionInterval) return;
 
-const pollInterval  = setInterval(poll, POLL_MS);
-const flushInterval = setInterval(flushActivities, FLUSH_MS);
+  isRunning = true;
 
-// Graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('\n⏹  Stopping tracker...');
+  // start session cache loop (60 seconds)
+  updateSession();
+  sessionInterval = setInterval(updateSession, 60000);
+
+  pollInterval = setInterval(poll, pollMs);
+  flushInterval = setInterval(flushActivities, flushMs);
+}
+
+async function stopTracker() {
   isRunning = false;
-  clearInterval(pollInterval);
-  clearInterval(flushInterval);
-  clearInterval(sessionInterval);
+
+  if (pollInterval) clearInterval(pollInterval);
+  if (flushInterval) clearInterval(flushInterval);
+  if (sessionInterval) clearInterval(sessionInterval);
+  pollInterval = null;
+  flushInterval = null;
+  sessionInterval = null;
+
   endCurrentActivity();
   await flushActivities();
-  console.log('👋 Done.');
-  process.exit(0);
-});
+}
+
+module.exports = { startTracker, stopTracker };
+
+if (require.main === module) {
+  const token = process.env.AUTH_TOKEN || '';
+  if (!token) {
+    console.error('❌ AUTH_TOKEN is required. Set it in .env');
+    process.exit(1);
+  }
+
+  console.log('🖥  Billable Tracker - Desktop (Windows)');
+  console.log(`   API: ${DEFAULT_API_URL}`);
+  console.log(`   Poll: every ${DEFAULT_POLL_MS / 1000}s | Flush: every ${DEFAULT_FLUSH_MS / 1000}s`);
+  console.log('   Press Ctrl+C to stop\n');
+
+  startTracker({
+    apiUrl: DEFAULT_API_URL,
+    pollMs: DEFAULT_POLL_MS,
+    flushMs: DEFAULT_FLUSH_MS,
+    getAuthToken: () => process.env.AUTH_TOKEN || '',
+    getIsPaused: () => false,
+    onAuthError: () => {}
+  });
+
+  process.on('SIGINT', async () => {
+    console.log('\n⏹  Stopping tracker...');
+    await stopTracker();
+    console.log('👋 Done.');
+    process.exit(0);
+  });
+}

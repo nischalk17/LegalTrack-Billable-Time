@@ -82,3 +82,4 @@ electron-app/*.json
 .cache/
 .turbo/
 .vercel/
+

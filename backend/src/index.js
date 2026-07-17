@@ -72,7 +72,7 @@ app.use((err, req, res, next) => {
 });
 
 // ── Start Server (Railway FIX here) ──────────────────────────
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, () => {
   console.log(`🚀 Backend running on port ${PORT}`);
   console.log(`📡 Health endpoint: /api/health`);
 });

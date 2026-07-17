@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import { clients, bills, Client, Bill } from '@/lib/api';
 import { Download, FileText, ChevronLeft, CalendarClock, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
@@ -63,7 +63,8 @@ function GenerateBillModal({ clientId, clientName, onClose, onGenerated }: {
   );
 }
 
-export default function ClientDetailsPage({ params }: { params: { id: string } }) {
+export default function ClientDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [client, setClient] = useState<(Client & { total_billed: number }) | null>(null);
   const [clientBills, setClientBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,15 +73,15 @@ export default function ClientDetailsPage({ params }: { params: { id: string } }
   const load = async () => {
     setLoading(true);
     try {
-      const dbClient = await clients.get(params.id);
+      const dbClient = await clients.get(id);
       setClient(dbClient);
       const allBills = await bills.list();
-      setClientBills(allBills.filter(b => b.client_id === params.id));
+      setClientBills(allBills.filter(b => b.client_id === id));
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [params.id]);
+  useEffect(() => { load(); }, [id]);
 
   const handleDownloadPdf = async (id: string, number: string) => {
     try {

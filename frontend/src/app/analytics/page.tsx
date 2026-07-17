@@ -1,4 +1,5 @@
 'use client';
+export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { 
@@ -406,7 +407,7 @@ export default function AnalyticsPage() {
                           cx="50%"
                           cy="50%"
                           labelLine={false}
-                          label={({ name, amount_npr }) => `${name} (${formatNPR(amount_npr)})`}
+                          label={({ name, amount_npr }: any) => `${name} (${formatNPR(amount_npr)})`}
                           outerRadius={80}
                           fill="#8884d8"
                           dataKey="amount_npr"

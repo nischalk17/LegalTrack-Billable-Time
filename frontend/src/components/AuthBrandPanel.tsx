@@ -1,42 +1,30 @@
-import { Scale } from 'lucide-react';
+const ENTRIES = [
+  { idx: '01', desc: 'Legal research — Westlaw', time: '1h 20m' },
+  { idx: '02', desc: 'Contract drafting', time: '2h 05m' },
+  { idx: '03', desc: 'Client correspondence', time: '0h 35m' },
+  { idx: '04', desc: 'Deposition review', time: '0h 48m' },
+];
 
 export default function AuthBrandPanel() {
   return (
     <div className="auth-brand-panel">
-      <div className="auth-brand-mark"><Scale size={18} /></div>
-      <h1 className="auth-brand-title">Billable time, kept like a ledger.</h1>
+      <div className="auth-brand-mark">LegalTrack / Docket</div>
+      <h1 className="auth-brand-title">
+        Billable hours, <em>tracked automatically</em>, matched to the right client.
+      </h1>
       <p className="auth-brand-sub">
-        LegalTrack captures your team's research and drafting time, matches it to the right
-        client, and turns it into invoices — so your firm spends less time on timesheets.
+        LegalTrack captures your team's research and drafting time in the background,
+        tags it to the right matter, and turns it into invoices — no manual timesheets.
       </p>
 
-      {/* Ledger receipt preview instead of a generic icon+bullet list */}
       <div className="auth-mock">
-        <div className="auth-mock-titlebar">
-          <span>Draft Invoice</span>
-          <span>INV-2026-014</span>
-        </div>
-        <div className="auth-mock-body">
-          <div className="auth-mock-row">
-            <span className="auth-mock-label">Legal research — Westlaw</span>
-            <span className="auth-mock-fill" />
-            <span className="auth-mock-value">1h 20m</span>
+        {ENTRIES.map(e => (
+          <div className="auth-mock-row" key={e.idx}>
+            <span className="auth-mock-idx">{e.idx}</span>
+            <span className="auth-mock-label">{e.desc}</span>
+            <span className="auth-mock-value">{e.time}</span>
           </div>
-          <div className="auth-mock-row">
-            <span className="auth-mock-label">Contract drafting</span>
-            <span className="auth-mock-fill" />
-            <span className="auth-mock-value">2h 05m</span>
-          </div>
-          <div className="auth-mock-row">
-            <span className="auth-mock-label">Client correspondence</span>
-            <span className="auth-mock-fill" />
-            <span className="auth-mock-value">0h 35m</span>
-          </div>
-          <div className="auth-mock-total">
-            <span style={{ fontSize: 12, color: 'var(--text2)' }}>Total due</span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 17, color: 'var(--text)' }}>Rs. 84,500</span>
-          </div>
-        </div>
+        ))}
       </div>
     </div>
   );

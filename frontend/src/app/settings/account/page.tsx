@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/api';
 import PasswordRules, { isPasswordValid } from '@/components/PasswordRules';
+import PasswordStrengthMeter from '@/components/PasswordStrengthMeter';
 import { KeyRound } from 'lucide-react';
 
 export default function AccountSettingsPage() {
@@ -75,6 +76,7 @@ export default function AccountSettingsPage() {
               onFocus={() => setPasswordTouched(true)}
               required
             />
+            <PasswordStrengthMeter password={newPassword} />
             {passwordTouched && <PasswordRules password={newPassword} />}
           </div>
           <div className="form-group">

@@ -56,29 +56,14 @@ export default function DashboardPage() {
         <Skeleton height={220} />
       ) : (
         <div className="bento-grid">
-          <div className="ledger">
-            <div className="ledger-total-label">Total Tracked Today</div>
-            <div className="ledger-total-value">{formatHours(totalSeconds)}</div>
-
-            <div className="ledger-row">
-              <span className="ledger-row-label"><Globe size={12} /> Browser</span>
-              <span className="ledger-row-fill" />
-              <span className="ledger-row-value">{formatHours(browserTime)}</span>
-            </div>
-            <div className="ledger-row">
-              <span className="ledger-row-label"><Laptop size={12} /> Desktop</span>
-              <span className="ledger-row-fill" />
-              <span className="ledger-row-value">{formatHours(desktopTime)}</span>
-            </div>
-            <div className="ledger-row">
-              <span className="ledger-row-label"><FileText size={12} /> Manual entries</span>
-              <span className="ledger-row-fill" />
-              <span className="ledger-row-value">{entriesCount}</span>
-            </div>
-            <div className="ledger-row">
-              <span className="ledger-row-label"><Lightbulb size={12} /> Pending suggestions</span>
-              <span className="ledger-row-fill" />
-              <span className="ledger-row-value">{pendingCount}</span>
+          <div className="meter-band">
+            <div className="meter-label">Total tracked today</div>
+            <div className="meter-value">{formatHours(totalSeconds)}</div>
+            <div className="meter-row">
+              <span className="meter-stat"><Globe size={12} /> Browser <b>{formatHours(browserTime)}</b></span>
+              <span className="meter-stat"><Laptop size={12} /> Desktop <b>{formatHours(desktopTime)}</b></span>
+              <span className="meter-stat"><FileText size={12} /> Entries <b>{entriesCount}</b></span>
+              <span className="meter-stat"><Lightbulb size={12} /> Pending <b>{pendingCount}</b></span>
             </div>
           </div>
 
@@ -126,28 +111,31 @@ export default function DashboardPage() {
         </div>
 
         {/* Recent Activity */}
-        <div className="card">
-          <div className="card-title">Recent Activity</div>
+        <div className="register-section">
+          <div className="card-title" style={{padding:'0 2px'}}>Recent Activity</div>
           {loading ? <Skeleton height={120} /> : recentActivities.length === 0 ? (
-            <div style={{color:'var(--text2)',fontSize:13}}>
+            <div className="card" style={{color:'var(--text2)',fontSize:13}}>
               No activity yet. Pair the browser extension to start tracking automatically.
             </div>
           ) : (
-            <div style={{display:'flex',flexDirection:'column',gap:6}}>
-              {recentActivities.slice(0,6).map((a) => {
+            <div className="docket">
+              {recentActivities.slice(0,6).map((a, i) => {
                 const SourceIcon = a.source_type === 'browser' ? Globe : Laptop;
+                const tagged = !!a.client_id;
                 return (
-                  <div key={a.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'1px solid var(--border)',paddingBottom:6}}>
-                    <div style={{flex:1,minWidth:0,display:'flex',alignItems:'center',gap:8}}>
-                      <SourceIcon size={13} style={{color:'var(--text3)', flexShrink:0}} />
-                      <div style={{minWidth:0}}>
-                        <div style={{fontSize:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                          {a.window_title || a.domain || a.app_name}
-                        </div>
-                        <div style={{fontSize:11,color:'var(--text3)'}}>{a.app_name || a.domain}</div>
+                  <div className="docket-entry" key={a.id}>
+                    <span className={`docket-stripe ${tagged ? 'ok' : 'warn'}`} />
+                    <span className="docket-idx">{String(i + 1).padStart(2, '0')}</span>
+                    <div style={{minWidth:0}}>
+                      <div className="docket-title" style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                        {a.window_title || a.domain || a.app_name}
+                      </div>
+                      <div className="docket-meta" style={{display:'flex',alignItems:'center',gap:5}}>
+                        <SourceIcon size={11} /> {a.app_name || a.domain}
                       </div>
                     </div>
-                    <span className="duration" style={{marginLeft:8}}>{Math.round(a.duration_seconds/60)}m</span>
+                    <span className={`badge ${tagged ? 'badge-accepted' : 'badge-pending'}`}>{tagged ? 'Tagged' : 'Untagged'}</span>
+                    <span className="docket-figure">{Math.round(a.duration_seconds/60)}m</span>
                   </div>
                 );
               })}

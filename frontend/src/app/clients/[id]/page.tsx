@@ -123,16 +123,16 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
         </button>
       </div>
 
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(250px, 1fr))',gap:16,marginBottom:32}}>
-        <div style={{background:'var(--surface)',padding:20,borderRadius:8,border:'1px solid var(--border)'}}>
-          <div style={{fontSize:12,color:'var(--text2)',marginBottom:8,textTransform:'uppercase',letterSpacing:0.5}}>Contact Info</div>
+      <div className="stats-grid" style={{gridTemplateColumns:'repeat(auto-fit, minmax(250px, 1fr))',marginBottom:32}}>
+        <div className="card hover-lift">
+          <div className="card-title">Contact Info</div>
           {client.contact_person && <div style={{fontWeight:500}}>{client.contact_person}</div>}
           {client.email && <div><a href={`mailto:${client.email}`} style={{color:'var(--accent)',textDecoration:'none'}}>{client.email}</a></div>}
           {client.phone && <div>{client.phone}</div>}
           {client.address && <div style={{color:'var(--text2)',marginTop:4,fontSize:13}}>{client.address}</div>}
         </div>
-        <div style={{background:'var(--surface)',padding:20,borderRadius:8,border:'1px solid var(--border)'}}>
-          <div style={{fontSize:12,color:'var(--text2)',marginBottom:8,textTransform:'uppercase',letterSpacing:0.5}}>Billing Details</div>
+        <div className="card hover-lift">
+          <div className="card-title">Billing Details</div>
           <div style={{display:'flex',justifyContent:'space-between',paddingBottom:8,borderBottom:'1px solid var(--border)',marginBottom:8}}>
             <span style={{color:'var(--text2)'}}>Rate:</span>
             <span style={{fontFamily:'var(--font-mono)'}}>Rs. {client.default_hourly_rate.toLocaleString('en-IN')}/hr</span>
@@ -146,9 +146,9 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
             <span style={{fontFamily:'var(--font-mono)'}}>{client.pan_number || 'N/A'}</span>
           </div>
         </div>
-        <div style={{background:'var(--surface)',padding:20,borderRadius:8,border:'1px solid var(--border)'}}>
-          <div style={{fontSize:12,color:'var(--text2)',marginBottom:8,textTransform:'uppercase',letterSpacing:0.5}}>Financial Summary</div>
-          <div style={{fontSize:28,fontWeight:600,fontFamily:'var(--font-mono)',display:'flex',alignItems:'baseline',gap:6}}>
+        <div className="card hover-lift">
+          <div className="card-title">Financial Summary</div>
+          <div style={{fontSize:28,fontWeight:700,fontFamily:'var(--font-mono)',display:'flex',alignItems:'baseline',gap:6}}>
             <span style={{fontSize:14,color:'var(--text2)'}}>Rs.</span> {client.total_billed.toLocaleString('en-IN')}
           </div>
           <div style={{fontSize:12,color:'var(--text3)'}}>Total Billed (Sent + Paid)</div>

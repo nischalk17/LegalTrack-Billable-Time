@@ -44,10 +44,10 @@ export default function LoginPage() {
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} required />
             </div>
             <div className="form-group">
-              <label style={{ display: 'flex', justifyContent: 'space-between' }}>
-                Password
-                <Link href="/forgot-password" style={{ color: 'var(--accent)', fontWeight: 400 }}>Forgot password?</Link>
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <label style={{ marginBottom: 0 }}>Password</label>
+                <Link href="/forgot-password" style={{ color: 'var(--accent)', fontSize: 12, textDecoration: 'none' }}>Forgot password?</Link>
+              </div>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
             </div>
             <button className="btn btn-primary" type="submit" disabled={loading} style={{width:'100%', justifyContent:'center'}}>

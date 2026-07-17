@@ -12,21 +12,9 @@ import {
 } from 'lucide-react';
 import { formatNPR, formatDuration, formatHour, categoryLabel, fillDateGaps } from '@/lib/chartHelpers';
 import { analytics as api } from '@/lib/api';
+import { useThemeColors } from '@/lib/useThemeColors';
 import Skeleton from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
-
-const COLORS = {
-  browser:  '#58a6ff',
-  desktop:  '#bc8cff',
-  billable: '#3fb950',
-  untagged: '#d29922',
-  accent:   '#1f6feb',
-  red:      '#f85149',
-  surface:  '#1c2330',
-  border:   '#21262d'
-};
-
-const CLIENT_PALETTE = ['#58a6ff','#3fb950','#bc8cff','#d29922','#f85149','#79c0ff'];
 
 // --- Components ---
 
@@ -42,7 +30,7 @@ const ChartEmptyState = ({ message = "No data available" }: { message?: string }
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: '8px 12px', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 12px', boxShadow: 'var(--shadow-lg)' }}>
         <p style={{ margin: 0, fontWeight: 600, fontSize: '0.85rem', color: 'var(--text2)', marginBottom: 4 }}>{label}</p>
         {payload.map((entry: any, index: number) => {
           let value = entry.value;
@@ -70,6 +58,19 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 // --- Tabs ---
 
 export default function AnalyticsPage() {
+  const theme = useThemeColors();
+  const COLORS = {
+    browser:  theme.accent,
+    desktop:  theme.purple,
+    billable: theme.green,
+    untagged: theme.yellow,
+    accent:   theme.accent2,
+    red:      theme.red,
+    surface:  theme.surface,
+    border:   theme.border,
+  };
+  const CLIENT_PALETTE = [theme.accent, theme.green, theme.purple, theme.yellow, theme.red, theme.accent2];
+
   const [activeTab, setActiveTab] = useState<'daily' | 'clients' | 'revenue'>('daily');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -526,7 +527,7 @@ export default function AnalyticsPage() {
                               nameKey="status"
                             >
                               {billStatusData.statuses.map((entry: any, index: number) => {
-                                const statusColors: any = { paid: COLORS.billable, sent: COLORS.browser, draft: '#8b949e' };
+                                const statusColors: any = { paid: COLORS.billable, sent: COLORS.browser, draft: theme.text2 };
                                 return <Cell key={`cell-${index}`} fill={statusColors[entry.status] || COLORS.accent} />;
                               })}
                             </Pie>

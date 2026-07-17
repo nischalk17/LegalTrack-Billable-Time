@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { LayoutDashboard, Clock, FileText, Lightbulb, LogOut, Scale, Users, Sliders, BarChart2, Puzzle, UserCog, KeyRound } from 'lucide-react';
 import { activities, organizations, auth, OrganizationSummary } from '@/lib/api';
 import ActiveSessionBar from '@/components/ActiveSessionBar';
+import ThemeToggle from '@/components/ThemeToggle';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -89,6 +90,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </select>
           )}
           {user && <div className="user-info"><div className="user-name">{user.name}</div><div className="user-email">{user.email}</div></div>}
+          <ThemeToggle />
           <button onClick={logout} className="logout-btn"><LogOut size={14} /> Logout</button>
         </div>
       </aside>

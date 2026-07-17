@@ -63,7 +63,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <Scale size={18} />
+          <span className="sidebar-logo-mark"><Scale size={15} /></span>
           <span>LegalTrack</span>
         </div>
         <nav className="sidebar-nav">
@@ -71,7 +71,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <Link key={href} href={href} className={`nav-item ${pathname === href ? 'active' : ''}`}>
               <Icon size={16} />
               <span>{label}</span>
-              {badge && <span style={{marginLeft:'auto', background:'#eab308', color:'#713f12', fontSize:'10px', padding:'2px 6px', borderRadius:'10px', fontWeight:600}}>{badge}</span>}
+              {badge && <span style={{marginLeft:'auto', background:'rgba(210,153,34,.2)', color:'var(--yellow)', fontSize:'10px', padding:'2px 6px', borderRadius:'10px', fontWeight:600}}>{badge}</span>}
             </Link>
           ))}
         </nav>
@@ -92,7 +92,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <ActiveSessionBar />
-        <main className="main-content" style={{ flex: 1, overflowY: 'auto' }}>{children}</main>
+        <main className="main-content fade-in" style={{ flex: 1, overflowY: 'auto' }} key={pathname}>{children}</main>
       </div>
     </div>
   );

@@ -2,7 +2,8 @@
 export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
 import { rules, clients, TrackingRule, Client } from '@/lib/api';
-import { Trash2, Edit, Plus, Check } from 'lucide-react';
+import { Trash2, Edit, Plus, Check, Sliders } from 'lucide-react';
+import EmptyState from '@/components/ui/EmptyState';
 
 export default function RulesPage() {
   const [data, setData] = useState<TrackingRule[]>([]);
@@ -91,8 +92,8 @@ export default function RulesPage() {
             </tr>
           </thead>
           <tbody>
-            {loading ? <tr><td colSpan={7} style={{textAlign:'center',padding:20}}>Loading...</td></tr> : 
-             data.length === 0 ? <tr><td colSpan={7} style={{textAlign:'center',padding:20}}>No rules. Create one to auto-tag activities.</td></tr> :
+            {loading ? <tr><td colSpan={7} style={{textAlign:'center',padding:20}}>Loading...</td></tr> :
+             data.length === 0 ? <tr><td colSpan={7}><EmptyState icon={Sliders} title="No rules yet" message="Create one to auto-tag activities to a client." /></td></tr> :
              data.map(r => (
                <tr key={r.id}>
                  <td><span className="badge badge-secondary">{r.priority}</span></td>

@@ -2,8 +2,11 @@
 export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
 import { activities, clients, Client, Activity } from '@/lib/api';
-import { Globe, Monitor, RefreshCw, ChevronDown } from 'lucide-react';
+import { Globe, Monitor, RefreshCw, ChevronDown, Inbox } from 'lucide-react';
 import { format } from 'date-fns';
+import EmptyState from '@/components/ui/EmptyState';
+import Popover from '@/components/ui/Popover';
+import { useToast } from '@/components/ui/ToastProvider';
 
 function formatDuration(seconds: number) {
   if (seconds < 60) return `${seconds}s`;
@@ -14,6 +17,7 @@ function formatDuration(seconds: number) {
 }
 
 export default function ActivitiesPage() {
+  const { show } = useToast();
   const [data, setData] = useState<Activity[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -58,8 +62,11 @@ export default function ActivitiesPage() {
       setAssigningId(null);
       setAssignClient('');
       setAssignMatter('');
+      show('success', 'Activity assigned to client');
       load();
-    } catch(e) {}
+    } catch (err: any) {
+      show('error', err.message || 'Failed to assign activity');
+    }
     setSavingAssign(false);
   };
 
@@ -77,7 +84,7 @@ export default function ActivitiesPage() {
           {(['all','browser','desktop'] as const).map(f => (
             <button key={f} className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-secondary'}`}
               onClick={() => { setFilter(f); setOffset(0); }}>
-              {f === 'all' ? 'All' : f === 'browser' ? '🌐 Browser' : '🖥 Desktop'}
+              {f === 'all' ? 'All' : f === 'browser' ? <><Globe size={12}/> Browser</> : <><Monitor size={12}/> Desktop</>}
             </button>
           ))}
         </div>
@@ -106,11 +113,7 @@ export default function ActivitiesPage() {
               <tr><td colSpan={8} style={{textAlign:'center',padding:32,color:'var(--text2)'}}>Loading...</td></tr>
             ) : data.length === 0 ? (
               <tr><td colSpan={8}>
-                <div className="empty-state">
-                  <div className="empty-state-icon">📭</div>
-                  <h3>No activities found</h3>
-                  <p>Install the Chrome extension or desktop tracker to start capturing activity.</p>
-                </div>
+                <EmptyState icon={Inbox} title="No activities found" message="Pair the browser extension to start capturing activity automatically." />
               </td></tr>
             ) : data.map(a => (
               <tr key={a.id}>
@@ -136,25 +139,28 @@ export default function ActivitiesPage() {
                       {a.matter && <div style={{color:'var(--text2)', fontSize:11}}>{a.matter}</div>}
                     </div>
                   ) : (
-                    <div style={{position:'relative'}}>
-                      {assigningId === a.id ? (
-                        <div style={{background:'var(--surface2)', padding:8, borderRadius:6, border:'1px solid var(--border)', position:'absolute', top:0, left:0, zIndex:10, width:220, boxShadow:'0 4px 12px rgba(0,0,0,0.2)'}}>
-                          <select className="form-control" style={{marginBottom:4, fontSize:11, padding:4}} value={assignClient} onChange={e=>setAssignClient(e.target.value)}>
-                            <option value="">Select client...</option>
-                            {allClients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-                          </select>
-                          <input type="text" className="form-control" style={{marginBottom:4, fontSize:11, padding:4}} placeholder="Matter (optional)" value={assignMatter} onChange={e=>setAssignMatter(e.target.value)} />
-                          <div style={{display:'flex', gap:4}}>
-                            <button className="btn btn-secondary btn-sm" style={{flex:1, padding:2}} onClick={()=>setAssigningId(null)}>Cancel</button>
-                            <button className="btn btn-primary btn-sm" style={{flex:1, padding:2}} disabled={savingAssign || !assignClient} onClick={()=>handleAssign(a.id)}>Save</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="badge" style={{background:'#fef08a', color:'#854d0e', cursor:'pointer'}} onClick={() => { setAssigningId(a.id); loadClients(); }}>
+                    <Popover
+                      align="left"
+                      open={assigningId === a.id}
+                      onOpenChange={(o) => { if (o) { setAssigningId(a.id); loadClients(); } else { setAssigningId(null); } }}
+                      trigger={({ onClick }) => (
+                        <span className="badge badge-pending" style={{cursor:'pointer'}} onClick={onClick}>
                           Untagged <ChevronDown size={10} style={{marginLeft:2, display:'inline'}}/>
                         </span>
                       )}
-                    </div>
+                    >
+                      <div style={{width:200}}>
+                        <select style={{marginBottom:4, fontSize:11, padding:4}} value={assignClient} onChange={e=>setAssignClient(e.target.value)}>
+                          <option value="">Select client...</option>
+                          {allClients.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                        <input type="text" style={{marginBottom:4, fontSize:11, padding:4}} placeholder="Matter (optional)" value={assignMatter} onChange={e=>setAssignMatter(e.target.value)} />
+                        <div style={{display:'flex', gap:4}}>
+                          <button className="btn btn-secondary btn-sm" style={{flex:1, padding:2}} onClick={()=>setAssigningId(null)}>Cancel</button>
+                          <button className="btn btn-primary btn-sm" style={{flex:1, padding:2}} disabled={savingAssign || !assignClient} onClick={()=>handleAssign(a.id)}>Save</button>
+                        </div>
+                      </div>
+                    </Popover>
                   )}
                 </td>
 

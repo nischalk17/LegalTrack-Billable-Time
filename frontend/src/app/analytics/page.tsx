@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { formatNPR, formatDuration, formatHour, categoryLabel, fillDateGaps } from '@/lib/chartHelpers';
 import { analytics as api } from '@/lib/api';
+import Skeleton from '@/components/ui/Skeleton';
+import ErrorState from '@/components/ui/ErrorState';
 
 const COLORS = {
   browser:  '#58a6ff',
@@ -28,51 +30,12 @@ const CLIENT_PALETTE = ['#58a6ff','#3fb950','#bc8cff','#d29922','#f85149','#79c0
 
 // --- Components ---
 
-const LoadingSkeleton = ({ height = 220 }: { height?: number }) => (
-  <div className="skeleton-container" style={{ height, background: 'var(--surface2)', borderRadius: 8, position: 'relative', overflow: 'hidden' }}>
-    <div className="skeleton-pulse" />
-    <style jsx>{`
-      .skeleton-pulse {
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
-        animation: pulse 1.5s infinite;
-      }
-      @keyframes pulse {
-        0% { transform: translateX(-100%); }
-        100% { transform: translateX(100%); }
-      }
-    `}</style>
-  </div>
-);
+const LoadingSkeleton = ({ height = 220 }: { height?: number }) => <Skeleton height={height} />;
 
-const EmptyState = ({ message = "No data available", emoji = "📊" }: { message?: string, emoji?: string }) => (
-  <div className="empty-state" style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text2)', padding: 20 }}>
-    <span style={{ fontSize: '2rem', marginBottom: 8 }}>{emoji}</span>
-    <p>{message}</p>
-  </div>
-);
-
-const ErrorState = ({ message, retry }: { message: string, retry: () => void }) => (
-  <div style={{ color: COLORS.red, display: 'flex', alignItems: 'center', gap: 8, padding: 12, background: 'rgba(248, 81, 73, 0.1)', borderRadius: 6, fontSize: '0.9rem' }}>
-    <AlertCircle size={16} />
-    <span>{message}</span>
-    <button onClick={retry} className="retry-btn">
-      <RefreshCw size={14} /> Retry
-    </button>
-    <style jsx>{`
-      .retry-btn {
-        margin-left: auto;
-        background: none;
-        border: none;
-        color: var(--text);
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 4%;
-        text-decoration: underline;
-      }
-    `}</style>
+const ChartEmptyState = ({ message = "No data available" }: { message?: string }) => (
+  <div style={{ height: '100%', minHeight: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text2)', padding: 20 }}>
+    <BarChart2 size={28} style={{ marginBottom: 8, opacity: .5 }} />
+    <p style={{ fontSize: 13 }}>{message}</p>
   </div>
 );
 
@@ -253,7 +216,7 @@ export default function AnalyticsPage() {
                         <Bar name="Minutes" dataKey="minutes" fill={COLORS.browser} radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
-                  ) : <EmptyState message="No activity tracked on this date" emoji="🌙" />
+                  ) : <ChartEmptyState message="No activity tracked on this date" />
                 )}
               </div>
 
@@ -288,7 +251,7 @@ export default function AnalyticsPage() {
                             <div style={{ fontSize: '0.7rem', color: 'var(--text2)', textTransform: 'uppercase' }}>Hours</div>
                         </div>
                       </div>
-                    ) : <EmptyState message="No source data" emoji="💻" />
+                    ) : <ChartEmptyState message="No source data" />
                   )}
                 </div>
 
@@ -313,7 +276,7 @@ export default function AnalyticsPage() {
                           <Bar name="Minutes" dataKey="minutes" fill={COLORS.desktop} radius={[0, 4, 4, 0]} barSize={20} />
                         </BarChart>
                       </ResponsiveContainer>
-                    ) : <EmptyState message="No app data" emoji="📦" />
+                    ) : <ChartEmptyState message="No app data" />
                   )}
                 </div>
               </div>
@@ -392,7 +355,7 @@ export default function AnalyticsPage() {
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
-                  ) : <EmptyState message="No clients billed in this period" />
+                  ) : <ChartEmptyState message="No clients billed in this period" />
                 )}
               </div>
 
@@ -420,7 +383,7 @@ export default function AnalyticsPage() {
                         <Tooltip content={<CustomTooltip />} />
                       </PieChart>
                     </ResponsiveContainer>
-                  ) : <EmptyState message="No revenue recorded" />
+                  ) : <ChartEmptyState message="No revenue recorded" />
                 )}
               </div>
             </div>
@@ -514,7 +477,7 @@ export default function AnalyticsPage() {
                        />
                      </ComposedChart>
                    </ResponsiveContainer>
-                 ) : <EmptyState message="No revenue trend data" />
+                 ) : <ChartEmptyState message="No revenue trend data" />
                )}
             </div>
 
@@ -542,7 +505,7 @@ export default function AnalyticsPage() {
                           <Legend />
                         </PieChart>
                       </ResponsiveContainer>
-                    ) : <EmptyState message="No category data" />
+                    ) : <ChartEmptyState message="No category data" />
                   )}
                </div>
 
@@ -576,7 +539,7 @@ export default function AnalyticsPage() {
                             <div style={{ fontSize: '0.65rem', color: 'var(--text2)', textTransform: 'uppercase' }}>Total Invoiced</div>
                         </div>
                       </div>
-                    ) : <EmptyState message="No bills recorded" />
+                    ) : <ChartEmptyState message="No bills recorded" />
                   )}
                </div>
             </div>

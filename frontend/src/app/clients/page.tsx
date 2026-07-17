@@ -2,8 +2,9 @@
 export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
 import { clients as clientsApi, Client } from '@/lib/api';
-import { Plus, Pencil, Trash2, X, ChevronRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, ChevronRight, Building2 } from 'lucide-react';
 import Link from 'next/link';
+import EmptyState from '@/components/ui/EmptyState';
 
 const EMPTY_CLIENT = {
   name: '', contact_person: '', email: '', phone: '', address: '', pan_number: '',
@@ -168,11 +169,7 @@ export default function ClientsPage() {
               <tr><td colSpan={6} style={{textAlign:'center',padding:32,color:'var(--text2)'}}>Loading...</td></tr>
             ) : clients.length === 0 ? (
               <tr><td colSpan={6}>
-                <div className="empty-state">
-                  <div className="empty-state-icon">🏢</div>
-                  <h3>No clients added</h3>
-                  <p>Add your first client to start generating bills.</p>
-                </div>
+                <EmptyState icon={Building2} title="No clients added" message="Add your first client to start generating bills." />
               </td></tr>
             ) : clients.map(c => (
               <tr key={c.id}>

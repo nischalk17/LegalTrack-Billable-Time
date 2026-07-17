@@ -1,7 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { activities, entries, suggestions, ActivityStats } from '@/lib/api';
-import { Clock, Monitor, Globe, FileText, Lightbulb, Zap } from 'lucide-react';
+import { Clock, Monitor, Globe, Laptop, Puzzle, UserPlus, KeyRound } from 'lucide-react';
+import Link from 'next/link';
+import Skeleton from '@/components/ui/Skeleton';
 
 function formatHours(seconds: string | number) {
   const s = Number(seconds);
@@ -37,8 +39,6 @@ export default function DashboardPage() {
   const browserTime = stats?.by_source.find(s => s.source_type === 'browser')?.total_seconds || 0;
   const desktopTime = stats?.by_source.find(s => s.source_type === 'desktop')?.total_seconds || 0;
 
-  if (loading) return <div className="loading">Loading dashboard...</div>;
-
   return (
     <div>
       <div className="page-header">
@@ -46,39 +46,45 @@ export default function DashboardPage() {
         <p className="page-sub">Today — {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
       </div>
 
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-label">Total Tracked Today</div>
-          <div className="stat-value">{formatHours(totalSeconds)}</div>
-          <div className="stat-sub">{stats?.by_source.reduce((a,s) => a + Number(s.event_count), 0) || 0} events</div>
+      {loading ? (
+        <div className="stats-grid">
+          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} height={78} />)}
         </div>
-        <div className="stat-card">
-          <div className="stat-label">Browser Time</div>
-          <div className="stat-value" style={{color:'var(--accent)'}}>{formatHours(browserTime)}</div>
-          <div className="stat-sub">Research &amp; online work</div>
+      ) : (
+        <div className="stats-grid">
+          <div className="stat-card hover-lift">
+            <div className="stat-label">Total Tracked Today</div>
+            <div className="stat-value">{formatHours(totalSeconds)}</div>
+            <div className="stat-sub">{stats?.by_source.reduce((a,s) => a + Number(s.event_count), 0) || 0} events</div>
+          </div>
+          <div className="stat-card hover-lift">
+            <div className="stat-label">Browser Time</div>
+            <div className="stat-value" style={{color:'var(--accent)'}}>{formatHours(browserTime)}</div>
+            <div className="stat-sub">Research &amp; online work</div>
+          </div>
+          <div className="stat-card hover-lift">
+            <div className="stat-label">Desktop Time</div>
+            <div className="stat-value" style={{color:'var(--purple)'}}>{formatHours(desktopTime)}</div>
+            <div className="stat-sub">Apps &amp; documents</div>
+          </div>
+          <div className="stat-card hover-lift">
+            <div className="stat-label">Manual Entries</div>
+            <div className="stat-value" style={{color:'var(--green)'}}>{entriesCount}</div>
+            <div className="stat-sub">Logged time entries</div>
+          </div>
+          <div className="stat-card hover-lift">
+            <div className="stat-label">Pending Suggestions</div>
+            <div className="stat-value" style={{color:'var(--yellow)'}}>{pendingCount}</div>
+            <div className="stat-sub">Ready to convert</div>
+          </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-label">Desktop Time</div>
-          <div className="stat-value" style={{color:'var(--purple)'}}>{formatHours(desktopTime)}</div>
-          <div className="stat-sub">Apps &amp; documents</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Manual Entries</div>
-          <div className="stat-value" style={{color:'var(--green)'}}>{entriesCount}</div>
-          <div className="stat-sub">Logged time entries</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Pending Suggestions</div>
-          <div className="stat-value" style={{color:'var(--yellow)'}}>{pendingCount}</div>
-          <div className="stat-sub">Ready to convert</div>
-        </div>
-      </div>
+      )}
 
       <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:16}}>
         {/* Top Apps */}
         <div className="card">
           <div className="card-title">Top Applications Today</div>
-          {stats?.top_apps.length === 0 ? (
+          {loading ? <Skeleton height={120} /> : stats?.top_apps.length === 0 ? (
             <div style={{color:'var(--text2)',fontSize:13}}>No activity tracked yet today</div>
           ) : (
             <div style={{display:'flex',flexDirection:'column',gap:8}}>
@@ -98,23 +104,29 @@ export default function DashboardPage() {
         {/* Recent Activity */}
         <div className="card">
           <div className="card-title">Recent Activity</div>
-          {recentActivities.length === 0 ? (
+          {loading ? <Skeleton height={120} /> : recentActivities.length === 0 ? (
             <div style={{color:'var(--text2)',fontSize:13}}>
-              No activity yet. Install the Chrome extension and desktop tracker to start.
+              No activity yet. Pair the browser extension to start tracking automatically.
             </div>
           ) : (
             <div style={{display:'flex',flexDirection:'column',gap:6}}>
-              {recentActivities.slice(0,6).map((a) => (
-                <div key={a.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'1px solid var(--border)',paddingBottom:6}}>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                      {a.source_type === 'browser' ? '🌐' : '🖥'} {a.window_title || a.domain || a.app_name}
+              {recentActivities.slice(0,6).map((a) => {
+                const SourceIcon = a.source_type === 'browser' ? Globe : Laptop;
+                return (
+                  <div key={a.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'1px solid var(--border)',paddingBottom:6}}>
+                    <div style={{flex:1,minWidth:0,display:'flex',alignItems:'center',gap:8}}>
+                      <SourceIcon size={13} style={{color:'var(--text3)', flexShrink:0}} />
+                      <div style={{minWidth:0}}>
+                        <div style={{fontSize:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                          {a.window_title || a.domain || a.app_name}
+                        </div>
+                        <div style={{fontSize:11,color:'var(--text3)'}}>{a.app_name || a.domain}</div>
+                      </div>
                     </div>
-                    <div style={{fontSize:11,color:'var(--text3)'}}>{a.app_name || a.domain}</div>
+                    <span className="duration" style={{marginLeft:8}}>{Math.round(a.duration_seconds/60)}m</span>
                   </div>
-                  <span className="duration" style={{marginLeft:8}}>{Math.round(a.duration_seconds/60)}m</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -122,19 +134,21 @@ export default function DashboardPage() {
 
       {/* Setup instructions */}
       <div className="card" style={{marginTop:16, borderColor:'var(--border2)'}}>
-        <div className="card-title"><Zap size={12} style={{display:'inline',marginRight:4}}/>Setup Guide</div>
+        <div className="card-title">Setup Guide</div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:16}}>
           {[
-            { icon:'🌐', title:'Chrome Extension', steps:['Open chrome://extensions', 'Enable Developer mode', 'Load Unpacked → /extension folder', 'Paste your auth token in popup'] },
-            { icon:'🖥', title:'Desktop Tracker (Windows)', steps:['cd tracker && npm install', 'Copy .env.example to .env', 'Paste JWT token in AUTH_TOKEN', 'Run: npm start'] },
-            { icon:'🔑', title:'Get Your Token', steps:['Log in to this dashboard', 'Copy token from browser DevTools', 'Application → Local Storage', 'Key: auth_token'] },
-          ].map(({icon,title,steps}) => (
-            <div key={title}>
-              <div style={{fontWeight:500,marginBottom:8}}>{icon} {title}</div>
+            { icon: Puzzle, title: 'Pair the Extension', steps: ['Load /extension unpacked in Chrome', 'Go to Settings → Extension', 'Generate a pairing code', 'Enter it in the extension popup'], href: '/settings/extension' },
+            { icon: UserPlus, title: 'Invite Your Team', steps: ['Go to Settings → Team', 'Invite a teammate by email', 'Assign their role', 'They share your clients & bills'], href: '/settings/team' },
+            { icon: KeyRound, title: 'Set Tracking Rules', steps: ['Go to Rules', 'Map a domain/app to a client', 'Activity auto-tags to that client', 'Review suggestions before billing'], href: '/rules' },
+          ].map(({ icon: Icon, title, steps, href }) => (
+            <Link key={title} href={href} style={{ textDecoration: 'none', color: 'inherit' }}>
+              <div style={{fontWeight:500,marginBottom:8,display:'flex',alignItems:'center',gap:8,color:'var(--text)'}}>
+                <Icon size={15} style={{color:'var(--accent)'}} /> {title}
+              </div>
               <ol style={{paddingLeft:16,color:'var(--text2)',fontSize:12,display:'flex',flexDirection:'column',gap:3}}>
                 {steps.map((s,i) => <li key={i}>{s}</li>)}
               </ol>
-            </div>
+            </Link>
           ))}
         </div>
       </div>

@@ -2,8 +2,9 @@
 export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
 import { entries, ManualEntry } from '@/lib/api';
-import { Plus, Pencil, Trash2, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, FileText } from 'lucide-react';
 import { format } from 'date-fns';
+import EmptyState from '@/components/ui/EmptyState';
 
 const EMPTY_FORM = {
   client: '', matter: '', description: '', date: new Date().toISOString().split('T')[0],
@@ -234,11 +235,7 @@ export default function EntriesPage() {
               <tr><td colSpan={8} style={{textAlign:'center',padding:32,color:'var(--text2)'}}>Loading...</td></tr>
             ) : data.length === 0 ? (
               <tr><td colSpan={8}>
-                <div className="empty-state">
-                  <div className="empty-state-icon">📋</div>
-                  <h3>No entries yet</h3>
-                  <p>Create your first manual time entry or accept a suggestion.</p>
-                </div>
+                <EmptyState icon={FileText} title="No entries yet" message="Create your first manual time entry or accept a suggestion." />
               </td></tr>
             ) : data.map(e => (
               <tr key={e.id}>

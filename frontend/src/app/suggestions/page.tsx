@@ -2,19 +2,20 @@
 export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
 import { suggestions, clients as clientsApi, BillableSuggestion, Client } from '@/lib/api';
-import { Zap, Check, X, RefreshCw } from 'lucide-react';
+import { Zap, Check, X, RefreshCw, Scale, FileSearch, PenLine, Mail, Users2, Landmark, BarChart3, Search, Briefcase, Lightbulb, Monitor, Globe } from 'lucide-react';
 import { format } from 'date-fns';
+import EmptyState from '@/components/ui/EmptyState';
 
-const CATEGORY_LABELS: Record<string, string> = {
-  legal_research: '⚖️ Legal Research',
-  document_review: '📄 Document Review',
-  drafting: '✍️ Drafting',
-  client_communication: '📧 Client Communication',
-  client_meeting: '🤝 Client Meeting',
-  court_filing: '🏛️ Court Filing',
-  analysis: '📊 Analysis',
-  research: '🔍 Research',
-  general_work: '💼 General Work',
+const CATEGORY_META: Record<string, { icon: typeof Scale; label: string }> = {
+  legal_research: { icon: Scale, label: 'Legal Research' },
+  document_review: { icon: FileSearch, label: 'Document Review' },
+  drafting: { icon: PenLine, label: 'Drafting' },
+  client_communication: { icon: Mail, label: 'Client Communication' },
+  client_meeting: { icon: Users2, label: 'Client Meeting' },
+  court_filing: { icon: Landmark, label: 'Court Filing' },
+  analysis: { icon: BarChart3, label: 'Analysis' },
+  research: { icon: Search, label: 'Research' },
+  general_work: { icon: Briefcase, label: 'General Work' },
 };
 
 function AcceptModal({ suggestion, allClients, onClose, onAccept }: {
@@ -147,15 +148,13 @@ export default function SuggestionsPage() {
       {loading ? (
         <div className="loading">Loading suggestions...</div>
       ) : data.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">💡</div>
-          <h3>No {filter} suggestions</h3>
-          <p>
-            {filter === 'pending'
-              ? 'Click "Generate from Activities" to create suggestions from your tracked time.'
-              : `No ${filter} suggestions for this date.`}
-          </p>
-        </div>
+        <EmptyState
+          icon={Lightbulb}
+          title={`No ${filter} suggestions`}
+          message={filter === 'pending'
+            ? 'Click "Generate from Activities" to create suggestions from your tracked time.'
+            : `No ${filter} suggestions for this date.`}
+        />
       ) : (
         <div style={{display:'flex',flexDirection:'column',gap:8}}>
           {data.map(s => (
@@ -163,12 +162,15 @@ export default function SuggestionsPage() {
               <div style={{flex:1,minWidth:0}}>
                 <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:4}}>
                   <span className={`badge badge-${s.status}`}>{s.status}</span>
-                  <span className="category-tag">{CATEGORY_LABELS[s.category] || s.category}</span>
+                  <span className="category-tag" style={{display:'inline-flex',alignItems:'center',gap:4}}>
+                    {(() => { const meta = CATEGORY_META[s.category]; const Icon = meta?.icon || Briefcase; return <Icon size={11} />; })()}
+                    {CATEGORY_META[s.category]?.label || s.category}
+                  </span>
                 </div>
                 <div style={{fontWeight:500,fontSize:14,marginBottom:2}}>{s.description}</div>
                 <div style={{fontSize:12,color:'var(--text2)'}}>
-                  {s.app_name && <span style={{marginRight:8}}>🖥 {s.app_name}</span>}
-                  {s.domain && <span style={{marginRight:8}}>🌐 {s.domain}</span>}
+                  {s.app_name && <span style={{marginRight:8, display:'inline-flex', alignItems:'center', gap:4}}><Monitor size={11} /> {s.app_name}</span>}
+                  {s.domain && <span style={{marginRight:8, display:'inline-flex', alignItems:'center', gap:4}}><Globe size={11} /> {s.domain}</span>}
                   <span>{format(new Date(s.date), 'MMM dd, yyyy')}</span>
                 </div>
               </div>

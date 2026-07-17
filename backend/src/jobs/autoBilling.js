@@ -1,4 +1,3 @@
-const cron = require('node-cron');
 const pool = require('../db/pool');
 const { generateBillForClient } = require('../routes/bills');
 const { sendDraftBillReadyEmail } = require('../utils/mailer');
@@ -9,8 +8,9 @@ const EARLIEST_ENTRY_DATE = '2000-01-01';
  * For every (organization, client) pair with unbilled manual_entries
  * (shared across everyone in the org), generates a draft bill covering all
  * of that client's unbilled time and emails every owner/admin in the
- * organization that it's ready to review. Runs monthly; also exported so it
- * can be triggered manually/from tests.
+ * organization that it's ready to review. Triggered externally via
+ * POST /api/internal/run-auto-billing (see routes/internal.js) — not an
+ * in-process timer, since free-tier hosts sleep when idle.
  */
 async function runAutoBilling() {
   const today = new Date().toISOString().split('T')[0];
@@ -72,12 +72,4 @@ async function runAutoBilling() {
   }
 }
 
-function scheduleAutoBilling() {
-  // 06:00 on the 1st of every month
-  cron.schedule('0 6 1 * *', () => {
-    runAutoBilling().catch(err => console.error('[auto-billing] run failed:', err));
-  });
-  console.log('📅 Auto-billing scheduled: 1st of each month at 06:00');
-}
-
-module.exports = { scheduleAutoBilling, runAutoBilling };
+module.exports = { runAutoBilling };

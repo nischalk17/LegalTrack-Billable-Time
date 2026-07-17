@@ -61,6 +61,7 @@ const authLimiter = rateLimit({
 });
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
+app.use('/api/internal', authLimiter);
 
 // ── Health check ─────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
@@ -87,6 +88,7 @@ app.use('/api/rules',       require('./routes/rules'));
 app.use('/api/sessions',    require('./routes/sessions'));
 app.use('/api/analytics',   require('./routes/analytics'));
 app.use('/api/organizations', require('./routes/organizations'));
+app.use('/api/internal',    require('./routes/internal'));
 
 // ── 404 handler ──────────────────────────────────────────────
 app.use((req, res) => {
@@ -100,11 +102,13 @@ app.use((err, req, res, next) => {
 });
 
 // ── Scheduled jobs ───────────────────────────────────────────
-if (process.env.NODE_ENV !== 'test') {
-  require('./jobs/autoBilling').scheduleAutoBilling();
-}
+// Auto-billing is triggered externally via POST /api/internal/run-auto-billing
+// (see .github/workflows/auto-billing.yml) rather than an in-process
+// node-cron timer — free-tier hosts sleep when idle, so an internal timer
+// can't be relied on to fire; an external ping wakes the service and
+// triggers the job in one step.
 
-// ── Start Server (Railway FIX here) ──────────────────────────
+// ── Start Server ───────────────────────────────────────────
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Backend running on port ${PORT}`);
   console.log(`📡 Health endpoint: /api/health`);

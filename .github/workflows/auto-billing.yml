@@ -1,0 +1,26 @@
+name: Monthly auto-billing trigger
+
+# Free-tier hosts (Render, etc.) sleep when idle, so an in-process cron
+# timer inside the backend can't be relied on to fire at the right time.
+# This workflow pings a protected backend endpoint on a schedule instead —
+# the request both wakes the service and triggers the billing run.
+#
+# Requires two repo secrets (Settings → Secrets and variables → Actions):
+#   BACKEND_URL           e.g. https://legaltrack-backend.onrender.com
+#   INTERNAL_CRON_SECRET  must match the backend's INTERNAL_CRON_SECRET env var
+
+on:
+  schedule:
+    # 06:00 UTC on the 1st of every month
+    - cron: '0 6 1 * *'
+  workflow_dispatch: {} # allows manually running this from the Actions tab
+
+jobs:
+  trigger-auto-billing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call auto-billing endpoint
+        run: |
+          curl --fail --show-error --silent \
+            -X POST "${{ secrets.BACKEND_URL }}/api/internal/run-auto-billing" \
+            -H "X-Internal-Secret: ${{ secrets.INTERNAL_CRON_SECRET }}"

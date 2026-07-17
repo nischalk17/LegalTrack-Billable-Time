@@ -17,6 +17,11 @@ const authMiddleware = (req, res, next) => {
     if (err.name === 'TokenExpiredError') {
       return res.status(401).json({ error: 'Token expired' });
     }
+    // Never log the token or secret. err.name/message from jsonwebtoken (e.g.
+    // "invalid signature", "jwt malformed") are safe, generic strings — but a
+    // persistent flood of "invalid signature" across all requests is the
+    // signature of a misconfigured/rotated JWT_SECRET, not routine bad tokens.
+    console.error(`Auth failed: ${err.name} - ${err.message}`);
     return res.status(401).json({ error: 'Invalid token' });
   }
 };

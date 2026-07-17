@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool = require('../db/pool');
 const auth = require('../middleware/auth');
+const { body, validationResult } = require('express-validator');
 
 // POST /api/sessions/start
 /**
@@ -52,9 +53,14 @@ const auth = require('../middleware/auth');
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/start', auth, async (req, res) => {
+router.post('/start', auth, [
+  body('client_id').isUUID().withMessage('client_id must be a valid UUID'),
+  body('matter').optional({ nullable: true }).trim(),
+], async (req, res) => {
+  const validation = validationResult(req);
+  if (!validation.isEmpty()) return res.status(400).json({ errors: validation.array() });
+
   const { client_id, matter } = req.body;
-  if (!client_id) return res.status(400).json({ error: 'client_id is required' });
 
   const client = await pool.connect();
   try {

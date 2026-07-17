@@ -2,6 +2,18 @@ const router = require('express').Router();
 const pool = require('../db/pool');
 const auth = require('../middleware/auth');
 const PDFDocument = require('pdfkit');
+const { query, validationResult } = require('express-validator');
+
+const reportValidation = [
+  query('date_from').optional().isDate().withMessage('date_from must be a valid date (YYYY-MM-DD)'),
+  query('date_to').optional().isDate().withMessage('date_to must be a valid date (YYYY-MM-DD)'),
+  query('client').optional().trim(),
+];
+
+// Strips characters that would break/corrupt a Content-Disposition header value.
+function sanitizeForFilename(value) {
+  return String(value).replace(/[^a-zA-Z0-9-]/g, '');
+}
 
 /**
  * @swagger
@@ -50,7 +62,10 @@ const PDFDocument = require('pdfkit');
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get('/pdf', auth, async (req, res) => {
+router.get('/pdf', auth, reportValidation, async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
   try {
     const { date_from, date_to, client } = req.query;
 
@@ -88,7 +103,7 @@ router.get('/pdf', auth, async (req, res) => {
 
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
 
-    const filename = `TimeReport_${date_from || 'All'}_${date_to || 'All'}.pdf`;
+    const filename = `TimeReport_${sanitizeForFilename(date_from || 'All')}_${sanitizeForFilename(date_to || 'All')}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
@@ -191,6 +206,7 @@ router.get('/pdf', auth, async (req, res) => {
     doc.end();
 
   } catch (err) {
+    console.error('Generate PDF report error:', err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Server error generating PDF' });
     }

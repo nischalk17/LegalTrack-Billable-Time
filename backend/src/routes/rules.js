@@ -2,6 +2,14 @@ const router = require('express').Router();
 const pool = require('../db/pool');
 const auth = require('../middleware/auth');
 const { matchRules } = require('../utils/matchRules');
+const { body, validationResult } = require('express-validator');
+
+const ruleValidation = [
+  body('client_id').isUUID().withMessage('client_id must be a valid UUID'),
+  body('matter').optional({ nullable: true }).trim(),
+  body('pattern').trim().notEmpty().withMessage('pattern is required'),
+  body('priority').optional().isInt().withMessage('priority must be an integer'),
+];
 
 /**
  * @swagger
@@ -111,10 +119,13 @@ const RULE_TYPES = ['domain', 'app_name', 'window_title', 'file_extension'];
 const MATCH_TYPES = ['exact', 'contains', 'starts_with'];
 
 // POST /api/rules
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, ruleValidation, async (req, res) => {
+  const validation = validationResult(req);
+  if (!validation.isEmpty()) return res.status(400).json({ errors: validation.array() });
+
   const { client_id, matter, rule_type, pattern, match_type, priority } = req.body;
-  if (!client_id || !rule_type || !pattern || !match_type) {
-    return res.status(400).json({ error: 'client_id, rule_type, pattern, and match_type are required' });
+  if (!rule_type || !match_type) {
+    return res.status(400).json({ error: 'rule_type and match_type are required' });
   }
   if (!RULE_TYPES.includes(rule_type) || !MATCH_TYPES.includes(match_type)) {
     return res.status(400).json({ error: 'Invalid rule_type or match_type' });
@@ -232,7 +243,13 @@ router.post('/', auth, async (req, res) => {
  */
 
 // PUT /api/rules/:id
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', auth, [
+  body('client_id').optional({ nullable: true }).isUUID().withMessage('client_id must be a valid UUID'),
+  body('priority').optional().isInt().withMessage('priority must be an integer'),
+], async (req, res) => {
+  const validation = validationResult(req);
+  if (!validation.isEmpty()) return res.status(400).json({ errors: validation.array() });
+
   const { client_id, matter, rule_type, pattern, match_type, priority } = req.body;
   if (rule_type && !RULE_TYPES.includes(rule_type)) {
     return res.status(400).json({ error: 'Invalid rule_type' });

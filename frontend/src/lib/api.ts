@@ -22,8 +22,19 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Request failed');
+  if (!res.ok) throw new Error(extractErrorMessage(data));
   return data;
+}
+
+// Backend errors come in two shapes: a single { error: string } (most routes)
+// or { errors: [{ msg, path/param, ... }] } from express-validator field checks.
+// Surface the real field-level message instead of falling back to a generic one.
+function extractErrorMessage(data: any): string {
+  if (data?.error) return data.error;
+  if (Array.isArray(data?.errors) && data.errors.length > 0) {
+    return data.errors.map((e: any) => e.msg || e.message).filter(Boolean).join('; ') || 'Validation failed';
+  }
+  return 'Request failed';
 }
 
 export const auth = {

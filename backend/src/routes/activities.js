@@ -243,10 +243,34 @@ router.post('/', auth, [
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
+const VALID_SOURCE_TYPES = ['browser', 'desktop'];
+
+function validateActivityItem(a, index) {
+  const errors = [];
+  if (!VALID_SOURCE_TYPES.includes(a.source_type)) {
+    errors.push(`activities[${index}].source_type must be one of ${VALID_SOURCE_TYPES.join(', ')}`);
+  }
+  if (!a.start_time || !Number.isFinite(Date.parse(a.start_time))) {
+    errors.push(`activities[${index}].start_time must be a valid ISO8601 date`);
+  }
+  if (!a.end_time || !Number.isFinite(Date.parse(a.end_time))) {
+    errors.push(`activities[${index}].end_time must be a valid ISO8601 date`);
+  }
+  if (!Number.isFinite(Number(a.duration_seconds)) || Number(a.duration_seconds) < 0) {
+    errors.push(`activities[${index}].duration_seconds must be a non-negative number`);
+  }
+  return errors;
+}
+
 router.post('/batch', auth, async (req, res) => {
   const { activities } = req.body;
   if (!Array.isArray(activities) || activities.length === 0) {
     return res.status(400).json({ error: 'activities must be a non-empty array' });
+  }
+
+  const itemErrors = activities.flatMap(validateActivityItem);
+  if (itemErrors.length > 0) {
+    return res.status(400).json({ errors: itemErrors });
   }
 
   const client = await pool.connect();
@@ -429,16 +453,29 @@ router.get('/untagged', auth, async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.patch('/:id/assign', auth, async (req, res) => {
+router.patch('/:id/assign', auth, [
+  body('client_id').isUUID().withMessage('client_id must be a valid UUID'),
+  body('matter').optional().trim(),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
   const { client_id, matter } = req.body;
-  if (!client_id) return res.status(400).json({ error: 'client_id is required' });
   try {
+    const ownedClient = await pool.query(
+      'SELECT id FROM clients WHERE id = $1 AND user_id = $2',
+      [client_id, req.user.id]
+    );
+    if (ownedClient.rows.length === 0) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
     const { rows } = await pool.query(
       'UPDATE tracked_activities SET client_id = $1, matter = $2 WHERE id = $3 AND user_id = $4 RETURNING *',
       [client_id, matter || null, req.params.id, req.user.id]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Activity not found' });
-    
+
     // Auto-convert to time entry now that it's tagged
     await convertActivityToEntry(pool, rows[0]);
 
@@ -524,6 +561,9 @@ router.get('/', auth, [
   query('limit').optional().isInt({ min: 1, max: 200 }),
   query('offset').optional().isInt({ min: 0 }),
 ], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
   const { source_type, date, limit = 50, offset = 0 } = req.query;
 
   let conditions = ['a.user_id = $1'];
@@ -622,7 +662,12 @@ router.get('/', auth, [
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get('/stats', auth, async (req, res) => {
+router.get('/stats', auth, [
+  query('date').optional().isDate().withMessage('date must be a valid date (YYYY-MM-DD)'),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
   const { date } = req.query;
   const targetDate = date || new Date().toISOString().split('T')[0];
 

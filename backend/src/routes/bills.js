@@ -2,6 +2,14 @@ const router = require('express').Router();
 const pool = require('../db/pool');
 const auth = require('../middleware/auth');
 const PDFDocument = require('pdfkit');
+const { body, validationResult } = require('express-validator');
+
+const generateBillValidation = [
+  body('client_id').isUUID().withMessage('client_id must be a valid UUID'),
+  body('date_from').isDate().withMessage('date_from must be a valid date (YYYY-MM-DD)'),
+  body('date_to').isDate().withMessage('date_to must be a valid date (YYYY-MM-DD)'),
+  body('matter').optional({ nullable: true }).trim(),
+];
 
 /**
  * @swagger
@@ -150,12 +158,11 @@ async function generateBillForClient(dbClient, userId, clientId, dateFrom, dateT
 }
 
 // POST /api/bills/generate - Generate a bill
-router.post('/generate', auth, async (req, res) => {
-  const { client_id, date_from, date_to, matter } = req.body;
+router.post('/generate', auth, generateBillValidation, async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-  if (!client_id || !date_from || !date_to) {
-    return res.status(400).json({ error: 'client_id, date_from, and date_to are required' });
-  }
+  const { client_id, date_from, date_to, matter } = req.body;
 
   const dbClient = await pool.connect();
   try {
@@ -221,6 +228,7 @@ router.get('/', auth, async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
+    console.error('List bills error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -279,6 +287,7 @@ router.get('/:id', auth, async (req, res) => {
     const linesRes = await pool.query('SELECT * FROM bill_line_items WHERE bill_id = $1 ORDER BY date ASC', [bill.id]);
     res.json({ ...bill, line_items: linesRes.rows });
   } catch (err) {
+    console.error('Get bill error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -358,6 +367,7 @@ router.patch('/:id/status', auth, async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ error: 'Bill not found' });
     res.json(rows[0]);
   } catch (err) {
+    console.error('Update bill status error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -417,6 +427,7 @@ router.delete('/:id', auth, async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ error: 'Bill not found or not draft' });
     res.json({ message: 'Bill deleted' });
   } catch (err) {
+    console.error('Delete bill error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -559,6 +570,7 @@ router.get('/:id/pdf', auth, async (req, res) => {
     doc.text('Payment due within 30 days', { align: 'center' });
     doc.end();
   } catch (err) {
+    console.error('Generate bill PDF error:', err);
     if (!res.headersSent) res.status(500).json({ error: 'Server error' });
   }
 });

@@ -11,6 +11,11 @@ if (!process.env.JWT_SECRET) {
   process.exit(1);
 }
 
+const KNOWN_PLACEHOLDER_SECRETS = ['supersecretjwtkey', 'supersecretjwtkey_changeme_in_production'];
+if (KNOWN_PLACEHOLDER_SECRETS.includes(process.env.JWT_SECRET)) {
+  console.warn('⚠️  JWT_SECRET is set to a known example/placeholder value — replace it before deploying to production.');
+}
+
 const app = express();
 const PORT = process.env.PORT || 4000;
 

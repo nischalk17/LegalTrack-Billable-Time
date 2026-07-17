@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool = require('../db/pool');
 const auth = require('../middleware/auth');
+const { body, validationResult } = require('express-validator');
 
 // ============================================================
 // Suggestion generation rules
@@ -99,7 +100,12 @@ function classifyActivity(activity) {
  *         description: Server error
  */
 // POST /api/suggestions/generate - Generate suggestions from recent unprocessed activities
-router.post('/generate', auth, async (req, res) => {
+router.post('/generate', auth, [
+  body('date').optional({ nullable: true }).isDate().withMessage('date must be a valid date (YYYY-MM-DD)'),
+], async (req, res) => {
+  const validation = validationResult(req);
+  if (!validation.isEmpty()) return res.status(400).json({ errors: validation.array() });
+
   const { date } = req.body;
   const targetDate = date || new Date().toISOString().split('T')[0];
 
@@ -267,9 +273,15 @@ router.get('/', auth, async (req, res) => {
  *         description: Server error
  */
 // PATCH /api/suggestions/:id/accept - Accept suggestion → create manual entry
-router.patch('/:id/accept', auth, async (req, res) => {
+router.patch('/:id/accept', auth, [
+  body('client_id').isUUID().withMessage('client_id must be a valid UUID'),
+  body('matter').optional({ nullable: true }).trim(),
+  body('notes').optional({ nullable: true }).trim(),
+], async (req, res) => {
+  const validation = validationResult(req);
+  if (!validation.isEmpty()) return res.status(400).json({ errors: validation.array() });
+
   const { client_id, matter, notes } = req.body;
-  if (!client_id) return res.status(400).json({ error: 'client_id is required' });
 
   const dbClient = await pool.connect();
   try {
@@ -351,6 +363,7 @@ router.patch('/:id/dismiss', auth, async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Suggestion not found' });
     res.json(result.rows[0]);
   } catch (err) {
+    console.error('Dismiss suggestion error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

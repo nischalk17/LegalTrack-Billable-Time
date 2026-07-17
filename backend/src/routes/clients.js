@@ -3,17 +3,20 @@ const pool = require('../db/pool');
 const auth = require('../middleware/orgAuth');
 const { requireRole } = auth;
 const { body, validationResult } = require('express-validator');
+const { idParam } = require('../utils/validators');
 
 const clientValidation = [
-  body('name').trim().notEmpty().withMessage('Client name is required'),
-  body('contact_person').optional({ nullable: true }).trim(),
+  body('name').trim().notEmpty().withMessage('Client name is required').isLength({ max: 255 }),
+  body('contact_person').optional({ nullable: true }).trim().isLength({ max: 255 }),
   body('email').optional({ nullable: true, checkFalsy: true }).isEmail().withMessage('Invalid email'),
-  body('phone').optional({ nullable: true }).trim(),
-  body('address').optional({ nullable: true }).trim(),
-  body('pan_number').optional({ nullable: true }).trim(),
+  body('phone').optional({ nullable: true, checkFalsy: true }).trim()
+    .matches(/^[+]?[\d\s-]{7,20}$/).withMessage('Invalid phone number'),
+  body('address').optional({ nullable: true }).trim().isLength({ max: 500 }),
+  body('pan_number').optional({ nullable: true, checkFalsy: true }).trim()
+    .matches(/^\d{9}$/).withMessage('PAN number must be 9 digits'),
   body('default_hourly_rate').optional().isInt({ min: 0 }),
   body('is_vat_applicable').optional().isBoolean(),
-  body('notes').optional({ nullable: true }).trim(),
+  body('notes').optional({ nullable: true }).trim().isLength({ max: 2000 }),
 ];
 
 /**
@@ -269,7 +272,9 @@ router.get('/', auth, async (req, res) => {
  */
 
 // GET /api/clients/:id - Get single client with total billed amount
-router.get('/:id', auth, async (req, res) => {
+router.get('/:id', auth, [idParam('id')], async (req, res) => {
+  const paramErrors = validationResult(req);
+  if (!paramErrors.isEmpty()) return res.status(400).json({ errors: paramErrors.array() });
   try {
     const clientRes = await pool.query(
       'SELECT * FROM clients WHERE id = $1 AND organization_id = $2',
@@ -324,7 +329,7 @@ router.post('/', auth, clientValidation, async (req, res) => {
 });
 
 // PUT /api/clients/:id - Update client
-router.put('/:id', auth, clientValidation, async (req, res) => {
+router.put('/:id', auth, [idParam('id'), ...clientValidation], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
@@ -359,7 +364,9 @@ router.put('/:id', auth, clientValidation, async (req, res) => {
 });
 
 // DELETE /api/clients/:id - Delete client
-router.delete('/:id', auth, requireRole('owner', 'admin'), async (req, res) => {
+router.delete('/:id', auth, requireRole('owner', 'admin'), [idParam('id')], async (req, res) => {
+  const paramErrors = validationResult(req);
+  if (!paramErrors.isEmpty()) return res.status(400).json({ errors: paramErrors.array() });
   try {
     const { rows } = await pool.query(
       'DELETE FROM clients WHERE id = $1 AND organization_id = $2 RETURNING id',

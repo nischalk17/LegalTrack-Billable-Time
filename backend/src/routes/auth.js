@@ -1,8 +1,26 @@
 const router = require('express').Router();
 // bcrypt removed in favor of pgcrypto
-const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const pool = require('../db/pool');
+const { passwordValidator, nameValidator } = require('../utils/validators');
+const { sendPasswordResetEmail } = require('../utils/mailer');
+const {
+  signAccessToken, issueRefreshToken, findValidRefreshToken,
+  revokeRefreshTokenById, revokeAllRefreshTokensForUser,
+  REFRESH_COOKIE_NAME, REFRESH_COOKIE_OPTIONS,
+} = require('../utils/tokens');
+
+/**
+ * Signs an access token and issues+sets a refresh token cookie for a user.
+ * Shared by register/login/reset-password so all three grant a full session
+ * the same way.
+ */
+async function issueSession(dbClient, res, user) {
+  const accessToken = signAccessToken(user);
+  const refreshToken = await issueRefreshToken(dbClient, user.id);
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_OPTIONS);
+  return accessToken;
+}
 
 /**
  * @swagger
@@ -27,14 +45,16 @@ const pool = require('../db/pool');
  *                 format: email
  *               password:
  *                 type: string
- *                 minLength: 6
+ *                 minLength: 8
+ *                 maxLength: 72
+ *                 description: Must contain at least one uppercase letter, one number, and one special character.
  *               name:
  *                 type: string
  *           examples:
  *             register:
  *               value:
  *                 email: "demo@legaltrack.com"
- *                 password: "demo1234"
+ *                 password: "Demo1234!"
  *                 name: "Demo Lawyer"
  *     responses:
  *       201:
@@ -68,8 +88,8 @@ const pool = require('../db/pool');
 // POST /api/auth/register
 router.post('/register', [
   body('email').isEmail().normalizeEmail(),
-  body('password').isLength({ min: 6 }),
-  body('name').trim().notEmpty(),
+  passwordValidator('password'),
+  nameValidator,
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
@@ -106,15 +126,11 @@ router.post('/register', [
     );
     await dbClient.query('UPDATE users SET active_organization_id = $1 WHERE id = $2', [organizationId, user.id]);
 
+    const accessToken = await issueSession(dbClient, res, user);
+
     await dbClient.query('COMMIT');
 
-    const token = jwt.sign(
-      { id: user.id, email: user.email, name: user.name },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
-
-    res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name } });
+    res.status(201).json({ token: accessToken, user: { id: user.id, email: user.email, name: user.name } });
   } catch (err) {
     await dbClient.query('ROLLBACK');
     console.error('Register error:', err);
@@ -202,16 +218,301 @@ router.post('/login', [
 
     const user = result.rows[0];
 
-    const token = jwt.sign(
-      { id: user.id, email: user.email, name: user.name },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
+    const accessToken = await issueSession(pool, res, user);
 
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+    res.json({ token: accessToken, user: { id: user.id, email: user.email, name: user.name } });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+const RESET_CODE_TTL_MINUTES = 10;
+
+function generateOtp() {
+  return String(Math.floor(100000 + Math.random() * 900000)); // 6 digits, no leading zero
+}
+
+/**
+ * @swagger
+ * /api/auth/forgot-password:
+ *   post:
+ *     summary: Request a password reset code
+ *     description: Always responds 200 regardless of whether the email is registered, to avoid leaking account existence. Emails a 6-digit OTP if it is.
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email: { type: string, format: email }
+ *     responses:
+ *       200:
+ *         description: If an account exists for that email, a reset code was sent
+ *       400:
+ *         description: Validation error
+ *       500:
+ *         description: Server error
+ */
+router.post('/forgot-password', [
+  body('email').isEmail().normalizeEmail(),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+  const { email } = req.body;
+  const genericResponse = { message: 'If an account exists for that email, a reset code has been sent.' };
+
+  try {
+    const userRes = await pool.query('SELECT id, name, email FROM users WHERE email = $1', [email]);
+    if (userRes.rows.length === 0) {
+      return res.json(genericResponse);
+    }
+    const user = userRes.rows[0];
+
+    const otp = generateOtp();
+    const expiresAt = new Date(Date.now() + RESET_CODE_TTL_MINUTES * 60 * 1000);
+    await pool.query(
+      'INSERT INTO password_reset_codes (user_id, code, expires_at) VALUES ($1, $2, $3)',
+      [user.id, otp, expiresAt]
+    );
+
+    await sendPasswordResetEmail({ to: user.email, name: user.name, otp });
+
+    res.json(genericResponse);
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/reset-password:
+ *   post:
+ *     summary: Reset password using an OTP
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, otp, new_password]
+ *             properties:
+ *               email: { type: string, format: email }
+ *               otp: { type: string, example: "123456" }
+ *               new_password: { type: string, minLength: 8, maxLength: 72 }
+ *     responses:
+ *       200:
+ *         description: Password updated
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Invalid or expired code
+ *       500:
+ *         description: Server error
+ */
+router.post('/reset-password', [
+  body('email').isEmail().normalizeEmail(),
+  body('otp').trim().isLength({ min: 6, max: 6 }).isNumeric().withMessage('otp must be a 6-digit code'),
+  passwordValidator('new_password'),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+  const { email, otp, new_password } = req.body;
+
+  const dbClient = await pool.connect();
+  try {
+    const userRes = await dbClient.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (userRes.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid or expired code' });
+    }
+    const userId = userRes.rows[0].id;
+
+    await dbClient.query('BEGIN');
+
+    const codeRes = await dbClient.query(
+      `SELECT id FROM password_reset_codes
+       WHERE user_id = $1 AND code = $2 AND used_at IS NULL AND expires_at > NOW()
+       ORDER BY created_at DESC LIMIT 1 FOR UPDATE`,
+      [userId, otp]
+    );
+    if (codeRes.rows.length === 0) {
+      await dbClient.query('ROLLBACK');
+      return res.status(401).json({ error: 'Invalid or expired code' });
+    }
+
+    await dbClient.query('UPDATE password_reset_codes SET used_at = NOW() WHERE id = $1', [codeRes.rows[0].id]);
+    await dbClient.query(
+      `UPDATE users SET password_hash = crypt($1, gen_salt('bf')), updated_at = NOW() WHERE id = $2`,
+      [new_password, userId]
+    );
+    // Any refresh token issued before this reset must stop working — the
+    // whole point of a security-motivated reset is invalidated otherwise.
+    // Already-issued access tokens still die naturally within 15 minutes.
+    await revokeAllRefreshTokensForUser(dbClient, userId);
+
+    await dbClient.query('COMMIT');
+    res.clearCookie(REFRESH_COOKIE_NAME, REFRESH_COOKIE_OPTIONS);
+    res.json({ message: 'Password updated. You can now log in with your new password.' });
+  } catch (err) {
+    await dbClient.query('ROLLBACK');
+    console.error('Reset password error:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    dbClient.release();
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/refresh:
+ *   post:
+ *     summary: Exchange the refresh-token cookie for a new access token
+ *     description: Rotates the refresh token (old one is revoked, a new one issued) on every use.
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: New access token issued
+ *       401:
+ *         description: Missing, invalid, or expired refresh token
+ *       500:
+ *         description: Server error
+ */
+router.post('/refresh', async (req, res) => {
+  const rawToken = req.cookies?.[REFRESH_COOKIE_NAME];
+  if (!rawToken) return res.status(401).json({ error: 'No refresh token' });
+
+  const dbClient = await pool.connect();
+  try {
+    await dbClient.query('BEGIN');
+
+    const tokenRow = await findValidRefreshToken(dbClient, rawToken);
+    if (!tokenRow) {
+      await dbClient.query('ROLLBACK');
+      res.clearCookie(REFRESH_COOKIE_NAME, REFRESH_COOKIE_OPTIONS);
+      return res.status(401).json({ error: 'Invalid or expired refresh token' });
+    }
+
+    const userRes = await dbClient.query('SELECT id, email, name FROM users WHERE id = $1', [tokenRow.user_id]);
+    if (userRes.rows.length === 0) {
+      await dbClient.query('ROLLBACK');
+      return res.status(401).json({ error: 'Invalid or expired refresh token' });
+    }
+    const user = userRes.rows[0];
+
+    // Rotate: revoke the one just used, issue a fresh one. Limits how long
+    // a stolen-but-not-yet-used refresh token stays valid, and makes reuse
+    // of an already-rotated token detectable (it'll simply no longer match
+    // an active row).
+    await revokeRefreshTokenById(dbClient, tokenRow.id);
+    const accessToken = await issueSession(dbClient, res, user);
+
+    await dbClient.query('COMMIT');
+    res.json({ token: accessToken });
+  } catch (err) {
+    await dbClient.query('ROLLBACK');
+    console.error('Refresh token error:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    dbClient.release();
+  }
+});
+
+/**
+ * @swagger
+ * /api/auth/logout:
+ *   post:
+ *     summary: Revoke the current refresh token and clear its cookie
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Logged out
+ */
+router.post('/logout', async (req, res) => {
+  const rawToken = req.cookies?.[REFRESH_COOKIE_NAME];
+  try {
+    if (rawToken) {
+      const tokenRow = await findValidRefreshToken(pool, rawToken);
+      if (tokenRow) await revokeRefreshTokenById(pool, tokenRow.id);
+    }
+  } catch (err) {
+    console.error('Logout error:', err);
+    // Still clear the cookie client-side even if revocation failed server-side.
+  }
+  res.clearCookie(REFRESH_COOKIE_NAME, REFRESH_COOKIE_OPTIONS);
+  res.json({ message: 'Logged out' });
+});
+
+/**
+ * @swagger
+ * /api/auth/change-password:
+ *   post:
+ *     summary: Change the current user's password
+ *     description: Requires the current password. Revokes all other active sessions (refresh tokens) on success.
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [current_password, new_password]
+ *             properties:
+ *               current_password: { type: string }
+ *               new_password: { type: string, minLength: 8, maxLength: 72 }
+ *     responses:
+ *       200:
+ *         description: Password changed
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Current password is incorrect
+ *       500:
+ *         description: Server error
+ */
+router.post('/change-password', require('../middleware/auth'), [
+  body('current_password').notEmpty(),
+  passwordValidator('new_password'),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+  const { current_password, new_password } = req.body;
+
+  const dbClient = await pool.connect();
+  try {
+    const userRes = await dbClient.query(
+      'SELECT id FROM users WHERE id = $1 AND password_hash = crypt($2, password_hash)',
+      [req.user.id, current_password]
+    );
+    if (userRes.rows.length === 0) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    await dbClient.query('BEGIN');
+    await dbClient.query(
+      `UPDATE users SET password_hash = crypt($1, gen_salt('bf')), updated_at = NOW() WHERE id = $2`,
+      [new_password, req.user.id]
+    );
+    await revokeAllRefreshTokensForUser(dbClient, req.user.id);
+    await dbClient.query('COMMIT');
+
+    res.clearCookie(REFRESH_COOKIE_NAME, REFRESH_COOKIE_OPTIONS);
+    res.json({ message: 'Password changed. Please log in again.' });
+  } catch (err) {
+    await dbClient.query('ROLLBACK');
+    console.error('Change password error:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    dbClient.release();
   }
 });
 

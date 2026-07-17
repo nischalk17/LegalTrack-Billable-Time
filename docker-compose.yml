@@ -20,6 +20,7 @@ services:
       - ./migration_v2.sql:/docker-entrypoint-initdb.d/02-migration_v2.sql
       - ./migration_v3.sql:/docker-entrypoint-initdb.d/03-migration_v3.sql
       - ./migration_v4.sql:/docker-entrypoint-initdb.d/04-migration_v4.sql
+      - ./migration_v5.sql:/docker-entrypoint-initdb.d/05-migration_v5.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-billable} -d ${POSTGRES_DB:-billable_tracker}"]
       interval: 10s

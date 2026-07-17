@@ -5,16 +5,23 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/lib/api';
 import AuthBrandPanel from '@/components/AuthBrandPanel';
+import PasswordRules, { isPasswordValid } from '@/components/PasswordRules';
 
 export default function RegisterPage() {
   const router = useRouter();
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isPasswordValid(form.password)) {
+      setPasswordTouched(true);
+      setError('Password does not meet the requirements below');
+      return;
+    }
     setLoading(true); setError('');
     try {
       const { token, user } = await auth.register(form.email, form.password, form.name);
@@ -46,8 +53,15 @@ export default function RegisterPage() {
               <input type="email" value={form.email} onChange={e => set('email', e.target.value)} required />
             </div>
             <div className="form-group">
-              <label>Password (min. 6 chars)</label>
-              <input type="password" value={form.password} onChange={e => set('password', e.target.value)} required minLength={6} />
+              <label>Password</label>
+              <input
+                type="password"
+                value={form.password}
+                onChange={e => set('password', e.target.value)}
+                onFocus={() => setPasswordTouched(true)}
+                required
+              />
+              {passwordTouched && <PasswordRules password={form.password} />}
             </div>
             <button className="btn btn-primary" type="submit" disabled={loading} style={{width:'100%',justifyContent:'center'}}>
               {loading ? 'Creating account...' : 'Create Account'}

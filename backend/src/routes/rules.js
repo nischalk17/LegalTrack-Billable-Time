@@ -3,11 +3,12 @@ const pool = require('../db/pool');
 const auth = require('../middleware/orgAuth');
 const { matchRules } = require('../utils/matchRules');
 const { body, validationResult } = require('express-validator');
+const { idParam } = require('../utils/validators');
 
 const ruleValidation = [
   body('client_id').isUUID().withMessage('client_id must be a valid UUID'),
-  body('matter').optional({ nullable: true }).trim(),
-  body('pattern').trim().notEmpty().withMessage('pattern is required'),
+  body('matter').optional({ nullable: true }).trim().isLength({ max: 255 }),
+  body('pattern').trim().notEmpty().withMessage('pattern is required').isLength({ max: 500 }),
   body('priority').optional().isInt().withMessage('priority must be an integer'),
 ];
 
@@ -244,7 +245,10 @@ router.post('/', auth, ruleValidation, async (req, res) => {
 
 // PUT /api/rules/:id
 router.put('/:id', auth, [
+  idParam('id'),
   body('client_id').optional({ nullable: true }).isUUID().withMessage('client_id must be a valid UUID'),
+  body('matter').optional({ nullable: true }).trim().isLength({ max: 255 }),
+  body('pattern').optional().trim().isLength({ max: 500 }),
   body('priority').optional().isInt().withMessage('priority must be an integer'),
 ], async (req, res) => {
   const validation = validationResult(req);
@@ -288,7 +292,9 @@ router.put('/:id', auth, [
 });
 
 // DELETE /api/rules/:id
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', auth, [idParam('id')], async (req, res) => {
+  const paramErrors = validationResult(req);
+  if (!paramErrors.isEmpty()) return res.status(400).json({ errors: paramErrors.array() });
   try {
     const result = await pool.query(
       'DELETE FROM tracking_rules WHERE id = $1 AND organization_id = $2 RETURNING id',

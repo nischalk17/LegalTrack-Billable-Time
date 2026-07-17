@@ -35,23 +35,30 @@ function generateCode() {
  *       500:
  *         description: Server error
  */
+const MAX_CODE_GENERATION_ATTEMPTS = 5;
+
 // POST /api/auth/pair/start
 router.post('/start', auth, async (req, res) => {
-  try {
+  const expiresAt = new Date(Date.now() + CODE_TTL_MINUTES * 60 * 1000);
+
+  for (let attempt = 0; attempt < MAX_CODE_GENERATION_ATTEMPTS; attempt++) {
     const code = generateCode();
-    const expiresAt = new Date(Date.now() + CODE_TTL_MINUTES * 60 * 1000);
-
-    const result = await pool.query(
-      `INSERT INTO extension_pairing_codes (user_id, code, expires_at)
-       VALUES ($1, $2, $3) RETURNING code, expires_at`,
-      [req.user.id, code, expiresAt]
-    );
-
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    console.error('Pairing start error:', err);
-    res.status(500).json({ error: 'Server error' });
+    try {
+      const result = await pool.query(
+        `INSERT INTO extension_pairing_codes (user_id, code, expires_at)
+         VALUES ($1, $2, $3) RETURNING code, expires_at`,
+        [req.user.id, code, expiresAt]
+      );
+      return res.status(201).json(result.rows[0]);
+    } catch (err) {
+      if (err.code === '23505') continue; // unique_violation on code — retry with a new one
+      console.error('Pairing start error:', err);
+      return res.status(500).json({ error: 'Server error' });
+    }
   }
+
+  console.error('Pairing start error: exhausted code generation attempts');
+  res.status(503).json({ error: 'Could not generate a pairing code, please try again' });
 });
 
 /**

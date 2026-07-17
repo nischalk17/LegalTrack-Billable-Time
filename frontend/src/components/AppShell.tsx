@@ -2,8 +2,8 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Clock, FileText, Lightbulb, LogOut, Scale, Users, Sliders, BarChart2, Puzzle, UserCog } from 'lucide-react';
-import { activities, organizations, OrganizationSummary } from '@/lib/api';
+import { LayoutDashboard, Clock, FileText, Lightbulb, LogOut, Scale, Users, Sliders, BarChart2, Puzzle, UserCog, KeyRound } from 'lucide-react';
+import { activities, organizations, auth, OrganizationSummary } from '@/lib/api';
 import ActiveSessionBar from '@/components/ActiveSessionBar';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -39,7 +39,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await auth.logout();
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user');
     router.push('/login');
@@ -53,8 +54,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     { href: '/clients',     icon: Users,          label: 'Clients' },
     { href: '/suggestions', icon: Lightbulb,       label: 'Suggestions' },
     { href: '/analytics',   icon: BarChart2,      label: 'Analytics' },
-    { href: '/settings/team',      icon: UserCog, label: 'Team' },
-    { href: '/settings/extension', icon: Puzzle,  label: 'Extension' },
+    { href: '/settings/team',      icon: UserCog,  label: 'Team' },
+    { href: '/settings/extension', icon: Puzzle,   label: 'Extension' },
+    { href: '/settings/account',   icon: KeyRound, label: 'Account' },
   ];
 
   if (isAuthPage) return <>{children}</>;

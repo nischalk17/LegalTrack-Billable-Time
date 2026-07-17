@@ -4,6 +4,7 @@ const pool = require('../db/pool');
 const orgAuth = require('../middleware/orgAuth');
 const { requireRole } = orgAuth;
 const { sendOrganizationInviteEmail } = require('../utils/mailer');
+const { idParam } = require('../utils/validators');
 
 const ROLES = ['owner', 'admin', 'lawyer', 'paralegal'];
 
@@ -234,6 +235,7 @@ router.post('/invite', orgAuth, requireRole('owner', 'admin'), [
  *         description: Server error
  */
 router.patch('/members/:userId', orgAuth, requireRole('owner', 'admin'), [
+  idParam('userId'),
   body('role').isIn(ROLES).withMessage(`role must be one of ${ROLES.join(', ')}`),
 ], async (req, res) => {
   const errors = validationResult(req);
@@ -292,7 +294,9 @@ router.patch('/members/:userId', orgAuth, requireRole('owner', 'admin'), [
  *       500:
  *         description: Server error
  */
-router.delete('/members/:userId', orgAuth, requireRole('owner', 'admin'), async (req, res) => {
+router.delete('/members/:userId', orgAuth, requireRole('owner', 'admin'), [idParam('userId')], async (req, res) => {
+  const paramErrors = validationResult(req);
+  if (!paramErrors.isEmpty()) return res.status(400).json({ errors: paramErrors.array() });
   try {
     const target = await pool.query(
       'SELECT role FROM organization_members WHERE organization_id = $1 AND user_id = $2',

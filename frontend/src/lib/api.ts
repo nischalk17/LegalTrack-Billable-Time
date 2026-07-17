@@ -5,7 +5,40 @@ function getToken(): string | null {
   return localStorage.getItem('auth_token');
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+function setToken(token: string) {
+  localStorage.setItem('auth_token', token);
+}
+
+function clearSessionAndRedirect() {
+  localStorage.removeItem('auth_token');
+  localStorage.removeItem('user');
+  window.location.href = '/login';
+}
+
+// The refresh token itself lives in an httpOnly cookie the frontend never
+// touches directly — this just asks the backend to mint a new access token
+// from it. `credentials: 'include'` is required for the cookie to be sent
+// cross-site (frontend and backend are different origins).
+let refreshInFlight: Promise<string | null> | null = null;
+async function refreshAccessToken(): Promise<string | null> {
+  if (!refreshInFlight) {
+    refreshInFlight = fetch(`${API_URL}/api/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (data.token) setToken(data.token);
+        return data.token || null;
+      })
+      .catch(() => null)
+      .finally(() => { refreshInFlight = null; });
+  }
+  return refreshInFlight;
+}
+
+async function request<T>(path: string, options: RequestInit = {}, isRetry = false): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -13,11 +46,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers, credentials: 'include' });
 
   if (res.status === 401) {
-    localStorage.removeItem('auth_token');
-    window.location.href = '/login';
+    // Don't try to refresh off the refresh/login/register endpoints themselves.
+    const isAuthEndpoint = path.startsWith('/api/auth/refresh') || path.startsWith('/api/auth/login') || path.startsWith('/api/auth/register');
+    if (!isRetry && !isAuthEndpoint) {
+      const newToken = await refreshAccessToken();
+      if (newToken) return request<T>(path, options, true);
+    }
+    clearSessionAndRedirect();
     throw new Error('Unauthorized');
   }
 
@@ -47,6 +85,25 @@ export const auth = {
       method: 'POST', body: JSON.stringify({ email, password, name })
     }),
   me: () => request<User>('/api/auth/me'),
+  logout: async () => {
+    try {
+      await request<{ message: string }>('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // Best-effort — always clear local state regardless of network/API failure.
+    }
+  },
+  forgotPassword: (email: string) =>
+    request<{ message: string }>('/api/auth/forgot-password', {
+      method: 'POST', body: JSON.stringify({ email })
+    }),
+  resetPassword: (email: string, otp: string, new_password: string) =>
+    request<{ message: string }>('/api/auth/reset-password', {
+      method: 'POST', body: JSON.stringify({ email, otp, new_password })
+    }),
+  changePassword: (current_password: string, new_password: string) =>
+    request<{ message: string }>('/api/auth/change-password', {
+      method: 'POST', body: JSON.stringify({ current_password, new_password })
+    }),
 };
 
 export const activities = {

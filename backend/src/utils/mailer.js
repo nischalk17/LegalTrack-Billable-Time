@@ -58,4 +58,32 @@ async function sendOrganizationInviteEmail({ to, inviteeName, organizationName, 
   }
 }
 
-module.exports = { sendDraftBillReadyEmail, sendOrganizationInviteEmail };
+/**
+ * Sends a password-reset OTP. Fails soft, same as the other send functions —
+ * the calling route already responds generically regardless of outcome, to
+ * avoid leaking whether an account exists for a given email.
+ */
+async function sendPasswordResetEmail({ to, name, otp }) {
+  if (!resend || !process.env.EMAIL_FROM) {
+    console.warn('Mailer not configured (RESEND_API_KEY/EMAIL_FROM missing); skipping email to', to);
+    return;
+  }
+
+  try {
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM,
+      to,
+      subject: 'Your LegalTrack password reset code',
+      html: `
+        <p>Hi ${name},</p>
+        <p>Use this code to reset your password. It expires in 10 minutes.</p>
+        <p style="font-size:28px;font-weight:600;letter-spacing:4px;">${otp}</p>
+        <p>If you didn't request this, you can safely ignore this email.</p>
+      `,
+    });
+  } catch (err) {
+    console.error('Failed to send password reset email:', err.message);
+  }
+}
+
+module.exports = { sendDraftBillReadyEmail, sendOrganizationInviteEmail, sendPasswordResetEmail };

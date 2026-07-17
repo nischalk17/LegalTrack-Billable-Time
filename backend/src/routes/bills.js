@@ -4,12 +4,19 @@ const auth = require('../middleware/orgAuth');
 const { requireRole } = auth;
 const PDFDocument = require('pdfkit');
 const { body, validationResult } = require('express-validator');
+const { idParam } = require('../utils/validators');
 
 const generateBillValidation = [
   body('client_id').isUUID().withMessage('client_id must be a valid UUID'),
   body('date_from').isDate().withMessage('date_from must be a valid date (YYYY-MM-DD)'),
-  body('date_to').isDate().withMessage('date_to must be a valid date (YYYY-MM-DD)'),
-  body('matter').optional({ nullable: true }).trim(),
+  body('date_to').isDate().withMessage('date_to must be a valid date (YYYY-MM-DD)')
+    .custom((value, { req }) => {
+      if (req.body.date_from && value < req.body.date_from) {
+        throw new Error('date_to must be on or after date_from');
+      }
+      return true;
+    }),
+  body('matter').optional({ nullable: true }).trim().isLength({ max: 255 }),
 ];
 
 /**
@@ -274,7 +281,9 @@ router.get('/', auth, async (req, res) => {
  */
 
 // GET /api/bills/:id - Get single bill with line items
-router.get('/:id', auth, async (req, res) => {
+router.get('/:id', auth, [idParam('id')], async (req, res) => {
+  const paramErrors = validationResult(req);
+  if (!paramErrors.isEmpty()) return res.status(400).json({ errors: paramErrors.array() });
   try {
     const billRes = await pool.query(
       `SELECT b.*, c.name as client_name, c.address, c.pan_number, c.email
@@ -356,7 +365,9 @@ router.get('/:id', auth, async (req, res) => {
  */
 
 // PATCH /api/bills/:id/status
-router.patch('/:id/status', auth, async (req, res) => {
+router.patch('/:id/status', auth, [idParam('id')], async (req, res) => {
+  const paramErrors = validationResult(req);
+  if (!paramErrors.isEmpty()) return res.status(400).json({ errors: paramErrors.array() });
   const { status } = req.body;
   if (!['draft', 'sent', 'paid'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
   try {
@@ -418,7 +429,9 @@ router.patch('/:id/status', auth, async (req, res) => {
  */
 
 // DELETE /api/bills/:id
-router.delete('/:id', auth, requireRole('owner', 'admin'), async (req, res) => {
+router.delete('/:id', auth, requireRole('owner', 'admin'), [idParam('id')], async (req, res) => {
+  const paramErrors = validationResult(req);
+  if (!paramErrors.isEmpty()) return res.status(400).json({ errors: paramErrors.array() });
   try {
     const { rows } = await pool.query(
       'DELETE FROM bills WHERE id = $1 AND organization_id = $2 AND status = $3 RETURNING id',
@@ -476,7 +489,9 @@ const formatDuration = (mins) => `${Math.floor(mins / 60)}h ${mins % 60}m`;
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get('/:id/pdf', auth, async (req, res) => {
+router.get('/:id/pdf', auth, [idParam('id')], async (req, res) => {
+  const paramErrors = validationResult(req);
+  if (!paramErrors.isEmpty()) return res.status(400).json({ errors: paramErrors.array() });
   try {
     const billRes = await pool.query(
       `SELECT b.*, c.name as client_name, c.address, c.pan_number

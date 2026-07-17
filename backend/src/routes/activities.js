@@ -4,6 +4,7 @@ const pool = require('../db/pool');
 const auth = require('../middleware/orgAuth');
 const { matchRules } = require('../utils/matchRules');
 const { convertActivityToEntry } = require('../utils/entryConverter');
+const { idParam } = require('../utils/validators');
 
 /**
  * @swagger
@@ -93,7 +94,13 @@ const { convertActivityToEntry } = require('../utils/entryConverter');
 router.post('/', auth, [
   body('source_type').isIn(['browser', 'desktop']),
   body('start_time').isISO8601(),
-  body('end_time').isISO8601(),
+  body('end_time').isISO8601()
+    .custom((value, { req }) => {
+      if (req.body.start_time && new Date(value) < new Date(req.body.start_time)) {
+        throw new Error('end_time must be on or after start_time');
+      }
+      return true;
+    }),
   body('duration_seconds').isInt({ min: 0 }),
 ], async (req, res) => {
   const errors = validationResult(req);
@@ -255,6 +262,8 @@ function validateActivityItem(a, index) {
   }
   if (!a.end_time || !Number.isFinite(Date.parse(a.end_time))) {
     errors.push(`activities[${index}].end_time must be a valid ISO8601 date`);
+  } else if (a.start_time && Number.isFinite(Date.parse(a.start_time)) && Date.parse(a.end_time) < Date.parse(a.start_time)) {
+    errors.push(`activities[${index}].end_time must be on or after start_time`);
   }
   if (!Number.isFinite(Number(a.duration_seconds)) || Number(a.duration_seconds) < 0) {
     errors.push(`activities[${index}].duration_seconds must be a non-negative number`);
@@ -454,6 +463,7 @@ router.get('/untagged', auth, async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.patch('/:id/assign', auth, [
+  idParam('id'),
   body('client_id').isUUID().withMessage('client_id must be a valid UUID'),
   body('matter').optional().trim(),
 ], async (req, res) => {

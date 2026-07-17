@@ -2,15 +2,16 @@ const router = require('express').Router();
 const { body, validationResult } = require('express-validator');
 const pool = require('../db/pool');
 const auth = require('../middleware/orgAuth');
+const { idParam } = require('../utils/validators');
 
 const entryValidation = [
-  body('client').trim().notEmpty().withMessage('Client is required'),
-  body('description').trim().notEmpty().withMessage('Description is required'),
+  body('client').trim().notEmpty().withMessage('Client is required').isLength({ max: 255 }),
+  body('description').trim().notEmpty().withMessage('Description is required').isLength({ max: 2000 }),
   body('date').isDate().withMessage('Valid date required'),
-  body('duration_minutes').isInt({ min: 1 }).withMessage('Duration must be at least 1 minute'),
-  body('matter').optional().trim(),
+  body('duration_minutes').isInt({ min: 1, max: 1440 }).withMessage('Duration must be between 1 and 1440 minutes'),
+  body('matter').optional().trim().isLength({ max: 255 }),
   body('source_type').optional().isIn(['manual', 'browser', 'desktop', 'suggestion']),
-  body('notes').optional().trim(),
+  body('notes').optional().trim().isLength({ max: 2000 }),
 ];
 
 /**
@@ -242,7 +243,9 @@ router.get('/', auth, async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 // GET /api/entries/:id - Get single entry
-router.get('/:id', auth, async (req, res) => {
+router.get('/:id', auth, [idParam('id')], async (req, res) => {
+  const paramErrors = validationResult(req);
+  if (!paramErrors.isEmpty()) return res.status(400).json({ errors: paramErrors.array() });
   try {
     const result = await pool.query(
       'SELECT * FROM manual_entries WHERE id = $1 AND organization_id = $2',
@@ -330,7 +333,7 @@ router.get('/:id', auth, async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 // PUT /api/entries/:id - Update entry
-router.put('/:id', auth, entryValidation, async (req, res) => {
+router.put('/:id', auth, [idParam('id'), ...entryValidation], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
@@ -396,7 +399,9 @@ router.put('/:id', auth, entryValidation, async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 // DELETE /api/entries/:id - Delete entry
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', auth, [idParam('id')], async (req, res) => {
+  const paramErrors = validationResult(req);
+  if (!paramErrors.isEmpty()) return res.status(400).json({ errors: paramErrors.array() });
   try {
     const result = await pool.query(
       'DELETE FROM manual_entries WHERE id = $1 AND organization_id = $2 RETURNING id',

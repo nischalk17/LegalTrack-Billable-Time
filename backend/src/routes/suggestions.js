@@ -2,6 +2,7 @@ const router = require('express').Router();
 const pool = require('../db/pool');
 const auth = require('../middleware/orgAuth');
 const { body, validationResult } = require('express-validator');
+const { idParam } = require('../utils/validators');
 
 // ============================================================
 // Suggestion generation rules
@@ -274,9 +275,10 @@ router.get('/', auth, async (req, res) => {
  */
 // PATCH /api/suggestions/:id/accept - Accept suggestion → create manual entry
 router.patch('/:id/accept', auth, [
+  idParam('id'),
   body('client_id').isUUID().withMessage('client_id must be a valid UUID'),
-  body('matter').optional({ nullable: true }).trim(),
-  body('notes').optional({ nullable: true }).trim(),
+  body('matter').optional({ nullable: true }).trim().isLength({ max: 255 }),
+  body('notes').optional({ nullable: true }).trim().isLength({ max: 2000 }),
 ], async (req, res) => {
   const validation = validationResult(req);
   if (!validation.isEmpty()) return res.status(400).json({ errors: validation.array() });
@@ -354,7 +356,9 @@ router.patch('/:id/accept', auth, [
  *         description: Server error
  */
 // PATCH /api/suggestions/:id/dismiss
-router.patch('/:id/dismiss', auth, async (req, res) => {
+router.patch('/:id/dismiss', auth, [idParam('id')], async (req, res) => {
+  const paramErrors = validationResult(req);
+  if (!paramErrors.isEmpty()) return res.status(400).json({ errors: paramErrors.array() });
   try {
     const result = await pool.query(
       'UPDATE billable_suggestions SET status = $1 WHERE id = $2 AND organization_id = $3 RETURNING *',

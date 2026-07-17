@@ -83,18 +83,23 @@ The extension auto-sends activity every 60 seconds. Pairing codes expire after 5
 
 ---
 
-## Deploy to Railway (Free)
+## Deploy to Railway
 
-1. Push code to GitHub
-2. Go to [railway.app](https://railway.app) → New Project
-3. Add **PostgreSQL** plugin → copy `DATABASE_URL`
-4. Deploy **backend** service:
-   - Root dir: `/backend`
-   - Set env vars: `DATABASE_URL`, `JWT_SECRET`, `FRONTEND_URL`
-5. Deploy **frontend** service:
-   - Root dir: `/frontend`
-   - Set env: `NEXT_PUBLIC_API_URL` = backend Railway URL
-6. Run schema: connect to Railway DB and run `schema.sql`
+1. Push code to GitHub.
+2. Go to [railway.app](https://railway.app) → New Project.
+3. Add a **PostgreSQL** plugin → copy its `DATABASE_URL`.
+4. Deploy the **backend** service (root dir `/backend`, builds from `backend/Dockerfile`):
+   - Runtime env vars: `DATABASE_URL`, `JWT_SECRET` (use a real random secret, not the example placeholder), `JWT_EXPIRES_IN`, `FRONTEND_URL` (the frontend's Railway URL), `RESEND_API_KEY`, `EMAIL_FROM` — see `backend/.env.example` for the full list.
+5. Deploy the **frontend** service (root dir `/frontend`, builds from `frontend/Dockerfile`):
+   - **Set `NEXT_PUBLIC_API_URL` as a build variable, not just a runtime one.** Next.js inlines `NEXT_PUBLIC_*` vars into the client bundle at `npm run build` time — a runtime-only env var is invisible to the build and the app will silently call `localhost:4000` in production. Railway: Service → Settings → set it under both "Build" and "Deploy" variables (or just "Variables" if your Railway plan doesn't separate them — check the value actually reaches the `docker build` step).
+6. Apply the database schema **in order** — connect to the Railway Postgres instance and run:
+   1. `schema.sql`
+   2. `migration_v2.sql`
+   3. `migration_v3.sql`
+   4. `migration_v4.sql`
+
+   (`db_migration.sql` is a legacy file superseded by `schema.sql` — do not run it, it's kept only for history.)
+7. Verify: hit `<backend-url>/api/health`, then log in on the frontend and confirm a network request actually reaches your backend URL (not `localhost:4000`) in the browser devtools.
 
 ---
 

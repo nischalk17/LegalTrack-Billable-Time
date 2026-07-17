@@ -13,7 +13,13 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      # docker-entrypoint-initdb.d scripts run in filename order — numbered
+      # so schema.sql always applies before the migrations, and migrations
+      # apply in version order. Only runs on first init of an empty volume.
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./migration_v2.sql:/docker-entrypoint-initdb.d/02-migration_v2.sql
+      - ./migration_v3.sql:/docker-entrypoint-initdb.d/03-migration_v3.sql
+      - ./migration_v4.sql:/docker-entrypoint-initdb.d/04-migration_v4.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-billable} -d ${POSTGRES_DB:-billable_tracker}"]
       interval: 10s

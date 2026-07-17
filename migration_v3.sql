@@ -6,8 +6,13 @@ ALTER TABLE manual_entries
   ADD COLUMN IF NOT EXISTS billed_at TIMESTAMPTZ;
 
 -- entryConverter.js does INSERT ... ON CONFLICT (activity_id), which requires
--- a unique constraint that was never added in a prior migration. Partial index
--- since activity_id is NULL for manual/suggestion-sourced entries.
+-- both the column and a unique constraint — neither ever existed on
+-- manual_entries (schema.sql only put activity_id on billable_suggestions).
+-- Every activity->entry auto-conversion has been throwing a DB error.
+ALTER TABLE manual_entries
+  ADD COLUMN IF NOT EXISTS activity_id UUID REFERENCES tracked_activities(id) ON DELETE SET NULL;
+
+-- Partial index since activity_id is NULL for manual/suggestion-sourced entries.
 CREATE UNIQUE INDEX IF NOT EXISTS manual_entries_activity_id_key
   ON manual_entries(activity_id) WHERE activity_id IS NOT NULL;
 

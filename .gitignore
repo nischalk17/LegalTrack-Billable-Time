@@ -83,3 +83,8 @@ electron-app/*.json
 .turbo/
 .vercel/
 
+# ── Claude Code / agent skills (local tooling) ─
+.claude/
+.agents/
+skills-lock.json
+

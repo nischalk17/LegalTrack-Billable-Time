@@ -1,11 +1,20 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpecs = require('./config/swagger');
 
+if (!process.env.JWT_SECRET) {
+  console.error('❌ JWT_SECRET is not defined in the environment.');
+  process.exit(1);
+}
+
 const app = express();
 const PORT = process.env.PORT || 4000;
+
+app.set('trust proxy', 1);
 
 /**
  * @swagger
@@ -28,6 +37,7 @@ const PORT = process.env.PORT || 4000;
  */
 
 // ── Middleware ────────────────────────────────────────────────
+app.use(helmet());
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
@@ -35,6 +45,17 @@ app.use(cors({
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// ── Rate limiting (auth endpoints) ──────────────────────────────
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts, please try again later' },
+});
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
 
 // ── Health check ─────────────────────────────────────────────
 app.get('/api/health', (req, res) => {

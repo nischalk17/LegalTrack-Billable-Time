@@ -107,13 +107,27 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+const RULE_TYPES = ['domain', 'app_name', 'window_title', 'file_extension'];
+const MATCH_TYPES = ['exact', 'contains', 'starts_with'];
+
 // POST /api/rules
 router.post('/', auth, async (req, res) => {
   const { client_id, matter, rule_type, pattern, match_type, priority } = req.body;
   if (!client_id || !rule_type || !pattern || !match_type) {
     return res.status(400).json({ error: 'client_id, rule_type, pattern, and match_type are required' });
   }
+  if (!RULE_TYPES.includes(rule_type) || !MATCH_TYPES.includes(match_type)) {
+    return res.status(400).json({ error: 'Invalid rule_type or match_type' });
+  }
   try {
+    const ownedClient = await pool.query(
+      'SELECT id FROM clients WHERE id = $1 AND user_id = $2',
+      [client_id, req.user.id]
+    );
+    if (ownedClient.rows.length === 0) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
     const result = await pool.query(
       `INSERT INTO tracking_rules (user_id, client_id, matter, rule_type, pattern, match_type, priority)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
@@ -220,7 +234,23 @@ router.post('/', auth, async (req, res) => {
 // PUT /api/rules/:id
 router.put('/:id', auth, async (req, res) => {
   const { client_id, matter, rule_type, pattern, match_type, priority } = req.body;
+  if (rule_type && !RULE_TYPES.includes(rule_type)) {
+    return res.status(400).json({ error: 'Invalid rule_type' });
+  }
+  if (match_type && !MATCH_TYPES.includes(match_type)) {
+    return res.status(400).json({ error: 'Invalid match_type' });
+  }
   try {
+    if (client_id) {
+      const ownedClient = await pool.query(
+        'SELECT id FROM clients WHERE id = $1 AND user_id = $2',
+        [client_id, req.user.id]
+      );
+      if (ownedClient.rows.length === 0) {
+        return res.status(404).json({ error: 'Client not found' });
+      }
+    }
+
     const result = await pool.query(
       `UPDATE tracking_rules SET
         client_id = COALESCE($1, client_id),

@@ -469,23 +469,24 @@ router.get('/categories', auth, async (req, res) => {
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/weekly', auth, async (req, res) => {
-  const { weeks = 4 } = req.query;
-  
+  const parsedWeeks = parseInt(req.query.weeks, 10);
+  const weeks = Number.isInteger(parsedWeeks) && parsedWeeks > 0 ? Math.min(parsedWeeks, 52) : 4;
+
   try {
     const query = `
-      SELECT 
+      SELECT
         TO_CHAR(DATE_TRUNC('week', start_time), 'Mon DD') || ' - ' || TO_CHAR(DATE_TRUNC('week', start_time) + INTERVAL '6 days', 'Mon DD') as week_label,
         SUM(CASE WHEN client_id IS NOT NULL THEN duration_seconds ELSE 0 END) / 60.0 as billable_minutes,
         SUM(CASE WHEN client_id IS NULL THEN duration_seconds ELSE 0 END) / 60.0 as untagged_minutes,
         SUM(CASE WHEN client_id IS NOT NULL THEN (duration_seconds / 3600.0) * COALESCE(c.default_hourly_rate, 0) ELSE 0 END) as amount_npr
       FROM tracked_activities a
       LEFT JOIN clients c ON a.client_id = c.id
-      WHERE a.user_id = $1 AND start_time >= NOW() - INTERVAL '$2 weeks'
+      WHERE a.user_id = $1 AND start_time >= NOW() - make_interval(weeks => $2::int)
       GROUP BY DATE_TRUNC('week', start_time)
       ORDER BY DATE_TRUNC('week', start_time)
-    `.replace('$2', parseInt(weeks)); // Use replace for INTERVAL since $ placeholder doesn't work inside INTERVAL directly in some pg configs
+    `;
 
-    const result = await pool.query(query, [req.user.id]);
+    const result = await pool.query(query, [req.user.id, weeks]);
     
     res.json({
       weeks: result.rows.map(r => ({

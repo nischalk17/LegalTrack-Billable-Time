@@ -58,8 +58,16 @@ router.post('/start', auth, async (req, res) => {
 
   const client = await pool.connect();
   try {
+    const ownedClient = await client.query(
+      'SELECT id FROM clients WHERE id = $1 AND user_id = $2',
+      [client_id, req.user.id]
+    );
+    if (ownedClient.rows.length === 0) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
     await client.query('BEGIN');
-    
+
     // End any currently active session
     await client.query(
       `UPDATE active_sessions SET ended_at = NOW(), is_active = false 

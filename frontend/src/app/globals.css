@@ -1,17 +1,20 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* Dark theme (default) — ink on dark paper, not cold blue-black */
-  --bg:        #15130f;
-  --surface:   #1c1a15;
-  --surface2:  #24211b;
-  --border:    #332e25;
-  --border2:   #453f32;
-  --text:      #f2ece0;
-  --text2:     #ab9f89;
-  --text3:     #6e6553;
-  --accent:    #c9576a;
-  --accent2:   #a13a4c;
+  /* Dark theme (default) — ink on dark paper, not cold blue-black.
+     Wider lightness steps between bg/surface/surface2 than a typical
+     dark-UI scale so cards actually separate from the background
+     instead of blending into a flat, muddy mass. */
+  --bg:        #0e0c09;
+  --surface:   #1b1812;
+  --surface2:  #26221a;
+  --border:    #3a3324;
+  --border2:   #4f4732;
+  --text:      #f5efe1;
+  --text2:     #b6ab93;
+  --text3:     #766c56;
+  --accent:    #d97188;
+  --accent2:   #b04760;
   --green:     #4caf50;
   --yellow:    #d3a53f;
   --red:       #d1543f;
@@ -356,9 +359,11 @@ select option { background: var(--surface2); color: var(--text); }
   .sidebar-logo { border-bottom: none; padding: 6px 10px 6px 0; border-right: 1px solid var(--border); }
   .sidebar-nav { flex-direction: row; padding: 0 8px; overflow-x: auto; }
   .nav-item span { display: none; }
-  .sidebar-footer { border-top: none; border-left: 1px solid var(--border); flex-direction: row; align-items: center; padding: 6px 10px; }
+  .sidebar-footer { border-top: none; border-left: 1px solid var(--border); flex-direction: row; align-items: center; padding: 6px 10px; flex-shrink: 0; }
   .user-info { display: none; }
+  .theme-toggle, .logout-btn { flex-shrink: 0; width: auto; white-space: nowrap; }
   .theme-toggle span { display: none; }
+  .sidebar-footer select { width: auto !important; margin-bottom: 0 !important; }
   .main-content { padding: 16px; }
 }
 

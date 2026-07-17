@@ -76,9 +76,82 @@ const PDFDocument = require('pdfkit');
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 
+/**
+ * Generates a draft bill for a client from their unbilled manual_entries
+ * in the given date range, and marks those entries as billed.
+ * Caller owns the dbClient connection/transaction lifecycle.
+ * Returns null if the client doesn't exist for this user, or if there are
+ * no unbilled entries in range (bill.notFound / bill.noEntries respectively).
+ */
+async function generateBillForClient(dbClient, userId, clientId, dateFrom, dateTo, matter) {
+  const clientRes = await dbClient.query('SELECT * FROM clients WHERE id = $1 AND user_id = $2', [clientId, userId]);
+  if (clientRes.rows.length === 0) return { error: 'client_not_found' };
+  const client = clientRes.rows[0];
+
+  let conditions = ['user_id = $1', 'client_id = $2', 'date >= $3', 'date <= $4', 'billed_at IS NULL'];
+  let params = [userId, clientId, dateFrom, dateTo];
+  let idx = 5;
+  if (matter) {
+    conditions.push(`matter ILIKE $${idx++}`);
+    params.push(`%${matter}%`);
+  }
+  const { rows: manualEntries } = await dbClient.query(
+    `SELECT * FROM manual_entries WHERE ${conditions.join(' AND ')} ORDER BY date ASC`, params
+  );
+
+  if (manualEntries.length === 0) return { error: 'no_entries' };
+
+  let subtotal_npr = 0;
+  const lineItems = [];
+
+  for (const entry of manualEntries) {
+    const amount = Math.round((entry.duration_minutes / 60) * client.default_hourly_rate);
+    subtotal_npr += amount;
+    lineItems.push({
+      source: entry.activity_id ? 'tracked' : 'manual',
+      entry_id: entry.id,
+      description: entry.description,
+      date: entry.date,
+      duration_minutes: entry.duration_minutes,
+      hourly_rate_npr: client.default_hourly_rate,
+      amount_npr: amount
+    });
+  }
+
+  lineItems.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  const vat_amount_npr = client.is_vat_applicable ? Math.round(subtotal_npr * 0.13) : 0;
+  const total_npr = subtotal_npr + vat_amount_npr;
+
+  const sequenceRes = await dbClient.query(`SELECT COUNT(*) + 1 as seq FROM bills WHERE user_id = $1 AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM NOW())`, [userId]);
+  const sequence = sequenceRes.rows[0].seq.toString().padStart(3, '0');
+  const currentYear = new Date().getFullYear();
+  const bill_number = `INV-${currentYear}-${sequence}`;
+
+  const billInsert = await dbClient.query(
+    `INSERT INTO bills (user_id, client_id, bill_number, matter, date_from, date_to, subtotal_npr, vat_amount_npr, total_npr, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'draft') RETURNING *`,
+    [userId, clientId, bill_number, matter || null, dateFrom, dateTo, subtotal_npr, vat_amount_npr, total_npr]
+  );
+  const bill = billInsert.rows[0];
+
+  for (const li of lineItems) {
+    await dbClient.query(
+      `INSERT INTO bill_line_items (bill_id, entry_id, description, date, duration_minutes, hourly_rate_npr, amount_npr, source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [bill.id, li.entry_id, li.description, li.date, li.duration_minutes, li.hourly_rate_npr, li.amount_npr, li.source]
+    );
+  }
+
+  const entryIds = manualEntries.map(e => e.id);
+  await dbClient.query('UPDATE manual_entries SET billed_at = NOW() WHERE id = ANY($1::uuid[])', [entryIds]);
+
+  return { bill, line_items: lineItems, client };
+}
+
 // POST /api/bills/generate - Generate a bill
 router.post('/generate', auth, async (req, res) => {
-  const { client_id, date_from, date_to, matter, include_tracked_activities } = req.body;
+  const { client_id, date_from, date_to, matter } = req.body;
 
   if (!client_id || !date_from || !date_to) {
     return res.status(400).json({ error: 'client_id, date_from, and date_to are required' });
@@ -86,72 +159,20 @@ router.post('/generate', auth, async (req, res) => {
 
   const dbClient = await pool.connect();
   try {
-    const clientRes = await dbClient.query('SELECT * FROM clients WHERE id = $1 AND user_id = $2', [client_id, req.user.id]);
-    if (clientRes.rows.length === 0) return res.status(404).json({ error: 'Client not found' });
-    const client = clientRes.rows[0];
+    await dbClient.query('BEGIN');
+    const result = await generateBillForClient(dbClient, req.user.id, client_id, date_from, date_to, matter);
 
-    // Fetch manual_entries
-    let conditions = ['user_id = $1', 'client_id = $2', 'date >= $3', 'date <= $4'];
-    let params = [req.user.id, client_id, date_from, date_to];
-    let idx = 5;
-    if (matter) {
-      conditions.push(`matter ILIKE $${idx++}`);
-      params.push(`%${matter}%`);
+    if (result.error === 'client_not_found') {
+      await dbClient.query('ROLLBACK');
+      return res.status(404).json({ error: 'Client not found' });
     }
-    const { rows: manualEntries } = await dbClient.query(
-      `SELECT * FROM manual_entries WHERE ${conditions.join(' AND ')} ORDER BY date ASC`, params
-    );
-
-    if (manualEntries.length === 0) {
+    if (result.error === 'no_entries') {
+      await dbClient.query('ROLLBACK');
       return res.status(400).json({ error: 'No entries found for this period' });
     }
 
-    let subtotal_npr = 0;
-    const lineItems = [];
-
-    for (const entry of manualEntries) {
-      const amount = Math.round((entry.duration_minutes / 60) * client.default_hourly_rate);
-      subtotal_npr += amount;
-      lineItems.push({
-        source: entry.activity_id ? 'tracked' : 'manual', 
-        entry_id: entry.id, 
-        description: entry.description,
-        date: entry.date, 
-        duration_minutes: entry.duration_minutes,
-        hourly_rate_npr: client.default_hourly_rate, 
-        amount_npr: amount
-      });
-    }
-
-    lineItems.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    const vat_amount_npr = client.is_vat_applicable ? Math.round(subtotal_npr * 0.13) : 0;
-    const total_npr = subtotal_npr + vat_amount_npr;
-
-    await dbClient.query('BEGIN');
-
-    const sequenceRes = await dbClient.query(`SELECT COUNT(*) + 1 as seq FROM bills WHERE user_id = $1 AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM NOW())`, [req.user.id]);
-    const sequence = sequenceRes.rows[0].seq.toString().padStart(3, '0');
-    const currentYear = new Date().getFullYear();
-    const bill_number = `INV-${currentYear}-${sequence}`;
-
-    const billInsert = await dbClient.query(
-      `INSERT INTO bills (user_id, client_id, bill_number, matter, date_from, date_to, subtotal_npr, vat_amount_npr, total_npr, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'draft') RETURNING *`,
-      [req.user.id, client_id, bill_number, matter || null, date_from, date_to, subtotal_npr, vat_amount_npr, total_npr]
-    );
-    const bill = billInsert.rows[0];
-
-    for (const li of lineItems) {
-      await dbClient.query(
-        `INSERT INTO bill_line_items (bill_id, entry_id, description, date, duration_minutes, hourly_rate_npr, amount_npr, source)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [bill.id, li.entry_id, li.description, li.date, li.duration_minutes, li.hourly_rate_npr, li.amount_npr, li.source]
-      );
-    }
-
     await dbClient.query('COMMIT');
-    res.status(201).json({ ...bill, line_items: lineItems });
+    res.status(201).json({ ...result.bill, line_items: result.line_items });
   } catch (err) {
     await dbClient.query('ROLLBACK');
     console.error('Generate bill err:', err);
@@ -542,4 +563,5 @@ router.get('/:id/pdf', auth, async (req, res) => {
   }
 });
 
+router.generateBillForClient = generateBillForClient;
 module.exports = router;

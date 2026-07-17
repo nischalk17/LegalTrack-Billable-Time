@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Clock, FileText, Lightbulb, LogOut, Scale, Users, Sliders, BarChart2 } from 'lucide-react';
+import { LayoutDashboard, Clock, FileText, Lightbulb, LogOut, Scale, Users, Sliders, BarChart2, Puzzle } from 'lucide-react';
 import { activities } from '@/lib/api';
 import ActiveSessionBar from '@/components/ActiveSessionBar';
 
@@ -40,6 +40,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     { href: '/clients',     icon: Users,          label: 'Clients' },
     { href: '/suggestions', icon: Lightbulb,       label: 'Suggestions' },
     { href: '/analytics',   icon: BarChart2,      label: 'Analytics' },
+    { href: '/settings/extension', icon: Puzzle,  label: 'Extension' },
   ];
 
   if (isAuthPage) return <>{children}</>;

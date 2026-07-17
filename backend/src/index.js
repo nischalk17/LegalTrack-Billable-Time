@@ -71,6 +71,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs));
 
 // ── Routes ───────────────────────────────────────────────────
 app.use('/api/auth',        require('./routes/auth'));
+app.use('/api/auth/pair',   require('./routes/extensionAuth'));
 app.use('/api/activities',  require('./routes/activities'));
 app.use('/api/entries',     require('./routes/entries'));
 app.use('/api/suggestions', require('./routes/suggestions'));
@@ -91,6 +92,11 @@ app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error' });
 });
+
+// ── Scheduled jobs ───────────────────────────────────────────
+if (process.env.NODE_ENV !== 'test') {
+  require('./jobs/autoBilling').scheduleAutoBilling();
+}
 
 // ── Start Server (Railway FIX here) ──────────────────────────
 app.listen(PORT, '0.0.0.0', () => {

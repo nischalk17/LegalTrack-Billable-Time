@@ -109,11 +109,17 @@
       <span class="stat-val" id="bufferedCount">0</span>
     </div>
     
-    <div class="token-section" id="tokenSection">
-      <label>Auth Token (paste from app)</label>
-      <input type="text" id="tokenInput" placeholder="eyJ..." />
-      <div class="saved-badge" id="savedBadge" style="display:none">✓ Token saved</div>
-      <button class="btn btn-primary" id="saveTokenBtn">Save Token</button>
+    <div class="token-section" id="pairingSection">
+      <label>Pairing Code (from LegalTrack &rarr; Settings &rarr; Extension)</label>
+      <input type="text" id="pairingCodeInput" placeholder="A1B2C3D4" maxlength="8" style="text-transform:uppercase" />
+      <div class="saved-badge" id="pairErrorBadge" style="display:none;color:#f87171"></div>
+      <div class="saved-badge" id="savedBadge" style="display:none">✓ Paired successfully</div>
+      <button class="btn btn-primary" id="pairBtn">Pair Extension</button>
+    </div>
+    <div class="token-section" id="apiUrlSection" style="margin-top:12px;">
+      <label>API URL</label>
+      <input type="text" id="apiUrlInput" placeholder="http://localhost:4000" />
+      <button class="btn btn-secondary" id="saveApiUrlBtn">Save API URL</button>
     </div>
     <button class="btn btn-secondary" id="flushBtn" style="margin-top:10px">Flush Now</button>
   </div>

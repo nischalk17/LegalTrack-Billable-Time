@@ -1,13 +1,16 @@
-# LegalTrack — Billable Time Tracker MVP
+# LegalTrack — Billable Time Tracker
 
-Automatic billable time tracking for legal work. Tracks browser activity (Chrome extension) + desktop applications (Windows), stores in PostgreSQL, and surfaces billable suggestions.
+Automatic billable time tracking for legal work. Tracks browser activity via a Chrome extension, matches it to clients/matters via rules, surfaces billable suggestions for review, and auto-generates draft invoices from confirmed time. Stores everything in PostgreSQL.
+
+> Native desktop tracking (Word/Adobe) was prototyped but is archived under `archive/` — see `archive/README.md`. v1 is browser-only.
 
 ## Stack
-- **Frontend**: Next.js 14 (App Router, TypeScript)
+- **Frontend**: Next.js 15 (App Router, TypeScript)
 - **Backend**: Express.js + PostgreSQL (pg)
-- **Auth**: JWT
-- **Trackers**: Chrome Extension (MV3) + Node.js desktop agent (active-win)
-- **Deploy**: Railway (free tier)
+- **Auth**: JWT (web) + one-time pairing codes (extension)
+- **Tracker**: Chrome Extension (MV3)
+- **Email**: Resend (draft-bill-ready notifications)
+- **Deploy**: Railway
 
 ---
 
@@ -16,14 +19,12 @@ Automatic billable time tracking for legal work. Tracks browser activity (Chrome
 ### Prerequisites
 - Docker + Docker Compose
 - Node.js 20+
-- Windows (for desktop tracker)
 
 ### 1. Clone & setup
 ```bash
 git clone <repo-url>
 cd billable-tracker
 cp backend/.env.example backend/.env
-cp tracker/.env.example tracker/.env
 ```
 
 ### 2. Start everything with Docker
@@ -46,23 +47,11 @@ Go to http://localhost:3000/login
 1. Open `chrome://extensions`
 2. Enable **Developer mode** (top right toggle)
 3. Click **Load unpacked** → select the `/extension` folder
-4. Click the extension icon
-5. Paste your JWT token (from browser DevTools → Application → Local Storage → `auth_token`)
+4. Log into the web app → **Extension** (sidebar) → generate a pairing code
+5. Click the extension icon → enter the pairing code → Pair Extension
+6. (Optional) set the API URL in the popup if the backend isn't on `localhost:4000`
 
-The extension auto-sends activity every 60 seconds.
-
----
-
-## Desktop Tracker Setup (Windows)
-```bash
-cd tracker
-npm install
-cp .env.example .env
-# Edit .env and paste your JWT token in AUTH_TOKEN
-npm start
-```
-
-The tracker polls every 10 seconds and flushes every 60 seconds.
+The extension auto-sends activity every 60 seconds. Pairing codes expire after 5 minutes.
 
 ---
 
@@ -88,6 +77,9 @@ The tracker polls every 10 seconds and flushes every 60 seconds.
 | GET | /api/suggestions | ✓ | List suggestions |
 | PATCH | /api/suggestions/:id/accept | ✓ | Accept suggestion |
 | PATCH | /api/suggestions/:id/dismiss | ✓ | Dismiss suggestion |
+| POST | /api/bills/generate | ✓ | Generate a draft bill from unbilled entries |
+| POST | /api/auth/pair/start | ✓ | Generate an extension pairing code |
+| POST | /api/auth/pair/exchange | - | Exchange a pairing code for a JWT |
 
 ---
 
@@ -154,7 +146,7 @@ billable-tracker/
 │   ├── suggestions/       # Suggestions UI
 │   └── login|register/    # Auth
 ├── extension/             # Chrome MV3 extension
-├── tracker/               # Windows desktop tracker
-├── schema.sql             # PostgreSQL schema
+├── archive/               # Unmaintained prior attempts (Electron app, CLI tracker)
+├── schema.sql             # PostgreSQL schema (+ migration_v2.sql, migration_v3.sql)
 └── docker-compose.yml     # Local dev
 ```

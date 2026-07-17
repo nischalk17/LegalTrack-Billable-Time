@@ -247,10 +247,11 @@ router.get('/', auth, async (req, res) => {
  *         application/json:
  *           schema:
  *             type: object
+ *             required: [client_id]
  *             properties:
- *               client:
+ *               client_id:
  *                 type: string
- *                 default: General
+ *                 format: uuid
  *               matter:
  *                 type: string
  *               notes:
@@ -258,14 +259,17 @@ router.get('/', auth, async (req, res) => {
  *     responses:
  *       200:
  *         description: Suggestion accepted and entry created
+ *       400:
+ *         description: client_id is required
  *       404:
- *         description: Suggestion not found
+ *         description: Suggestion or client not found
  *       500:
  *         description: Server error
  */
 // PATCH /api/suggestions/:id/accept - Accept suggestion → create manual entry
 router.patch('/:id/accept', auth, async (req, res) => {
-  const { client: clientName = 'General', matter, notes } = req.body;
+  const { client_id, matter, notes } = req.body;
+  if (!client_id) return res.status(400).json({ error: 'client_id is required' });
 
   const dbClient = await pool.connect();
   try {
@@ -278,15 +282,24 @@ router.patch('/:id/accept', auth, async (req, res) => {
       return res.status(404).json({ error: 'Suggestion not found' });
     }
 
+    const clientRes = await dbClient.query(
+      'SELECT id, name FROM clients WHERE id = $1 AND user_id = $2',
+      [client_id, req.user.id]
+    );
+    if (clientRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+    const clientName = clientRes.rows[0].name;
+
     const s = suggestion.rows[0];
     await dbClient.query('BEGIN');
 
     // Create manual entry from suggestion
     const entry = await dbClient.query(
-      `INSERT INTO manual_entries (user_id, client, matter, description, date, duration_minutes, source_type, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,'suggestion',$7)
+      `INSERT INTO manual_entries (user_id, client_id, client, matter, description, date, duration_minutes, source_type, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'suggestion',$8)
        RETURNING *`,
-      [req.user.id, clientName, matter, s.description, s.date, s.duration_minutes, notes]
+      [req.user.id, client_id, clientName, matter, s.description, s.date, s.duration_minutes, notes]
     );
 
     // Mark suggestion as accepted

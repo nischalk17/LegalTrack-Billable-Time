@@ -3,7 +3,7 @@
 // Tracks active tab, computes duration, sends to backend
 // ============================================================
 
-const API_URL = 'http://localhost:4000'; // Change for production
+const DEFAULT_API_URL = 'http://localhost:4000'; // overridable from the popup's API URL field
 const FLUSH_INTERVAL_MINUTES = 1; // Send batch every 1 minute
 
 let currentSession = null;   // { tabId, title, domain, url, startTime }
@@ -23,18 +23,16 @@ function getDurationSeconds(startTime) {
   return Math.round((Date.now() - startTime) / 1000);
 }
 
-// ── Auth helpers ──────────────────────────────────────────────
-async function getToken() {
-  // First try: get from Electron desktop app
-  try {
-    const res = await fetch('http://localhost:27832/token', { signal: AbortSignal.timeout(500) });
-    const data = await res.json();
-    if (data.token) return data.token;
-  } catch {
-    // Desktop app not running, fall through
-  }
+async function getApiUrl() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['api_url'], (r) => resolve(r.api_url || DEFAULT_API_URL));
+  });
+}
 
-  // Second try: get from chrome.storage (manual setup)
+// ── Auth helpers ──────────────────────────────────────────────
+// Token is obtained via the pairing-code flow in the popup (POST /api/auth/pair/exchange)
+// and stored in chrome.storage.local. No dependency on any desktop app.
+async function getToken() {
   return new Promise((resolve) => {
     chrome.storage.local.get(['auth_token'], (r) => resolve(r.auth_token || null));
   });
@@ -48,7 +46,8 @@ async function getActiveSession() {
     return;
   }
   try {
-    const res = await fetch(`${API_URL}/api/sessions/active`, {
+    const apiUrl = await getApiUrl();
+    const res = await fetch(`${apiUrl}/api/sessions/active`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (res.ok) {
@@ -75,7 +74,8 @@ async function flushActivities() {
   activityBuffer = [];
 
   try {
-    const response = await fetch(`${API_URL}/api/activities/batch`, {
+    const apiUrl = await getApiUrl();
+    const response = await fetch(`${apiUrl}/api/activities/batch`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -231,7 +231,38 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
     return true;
   }
-  
+
+  if (message.type === 'SET_API_URL') {
+    chrome.storage.local.set({ api_url: message.apiUrl }, () => {
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+
+  if (message.type === 'PAIR_EXCHANGE') {
+    (async () => {
+      try {
+        const apiUrl = await getApiUrl();
+        const res = await fetch(`${apiUrl}/api/auth/pair/exchange`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: message.code })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          sendResponse({ success: false, error: data.error || 'Pairing failed' });
+          return;
+        }
+        chrome.storage.local.set({ auth_token: data.token }, () => {
+          sendResponse({ success: true, user: data.user });
+        });
+      } catch (err) {
+        sendResponse({ success: false, error: 'Network error' });
+      }
+    })();
+    return true;
+  }
+
   if (message.type === 'GET_SESSION') {
     getActiveSession().then(() => {
       sendResponse({ activeSession });

@@ -1,7 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
-import { suggestions, BillableSuggestion } from '@/lib/api';
+import { suggestions, clients as clientsApi, BillableSuggestion, Client } from '@/lib/api';
 import { Zap, Check, X, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -17,12 +17,13 @@ const CATEGORY_LABELS: Record<string, string> = {
   general_work: '💼 General Work',
 };
 
-function AcceptModal({ suggestion, onClose, onAccept }: {
+function AcceptModal({ suggestion, allClients, onClose, onAccept }: {
   suggestion: BillableSuggestion;
+  allClients: Client[];
   onClose: () => void;
-  onAccept: (client: string, matter: string, notes: string) => Promise<void>;
+  onAccept: (clientId: string, matter: string, notes: string) => Promise<void>;
 }) {
-  const [client, setClient] = useState('');
+  const [clientId, setClientId] = useState('');
   const [matter, setMatter] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
@@ -44,7 +45,10 @@ function AcceptModal({ suggestion, onClose, onAccept }: {
         <div style={{display:'flex',flexDirection:'column',gap:12}}>
           <div className="form-group">
             <label>Client *</label>
-            <input value={client} onChange={e => setClient(e.target.value)} placeholder="e.g. Acme Corp" autoFocus />
+            <select value={clientId} onChange={e => setClientId(e.target.value)} autoFocus>
+              <option value="">Select Client...</option>
+              {allClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
           </div>
           <div className="form-group">
             <label>Matter</label>
@@ -57,8 +61,8 @@ function AcceptModal({ suggestion, onClose, onAccept }: {
         </div>
         <div className="modal-actions">
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn btn-green" disabled={!client || saving}
-            onClick={async () => { setSaving(true); await onAccept(client, matter, notes); setSaving(false); onClose(); }}>
+          <button className="btn btn-green" disabled={!clientId || saving}
+            onClick={async () => { setSaving(true); await onAccept(clientId, matter, notes); setSaving(false); onClose(); }}>
             <Check size={13}/> {saving ? 'Saving...' : 'Create Time Entry'}
           </button>
         </div>
@@ -69,6 +73,7 @@ function AcceptModal({ suggestion, onClose, onAccept }: {
 
 export default function SuggestionsPage() {
   const [data, setData] = useState<BillableSuggestion[]>([]);
+  const [allClients, setAllClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [filter, setFilter] = useState<'pending' | 'accepted' | 'dismissed'>('pending');
@@ -85,6 +90,7 @@ export default function SuggestionsPage() {
   };
 
   useEffect(() => { load(); }, [filter, date]);
+  useEffect(() => { clientsApi.list().then(setAllClients).catch(() => {}); }, []);
 
   const generate = async () => {
     setGenerating(true);
@@ -104,9 +110,9 @@ export default function SuggestionsPage() {
     setData(d => d.filter(s => s.id !== id));
   };
 
-  const handleAccept = async (client: string, matter: string, notes: string) => {
+  const handleAccept = async (clientId: string, matter: string, notes: string) => {
     if (!acceptTarget) return;
-    await suggestions.accept(acceptTarget.id, { client, matter, notes });
+    await suggestions.accept(acceptTarget.id, { client_id: clientId, matter, notes });
     setData(d => d.filter(s => s.id !== acceptTarget.id));
     setAcceptTarget(null);
   };
@@ -190,6 +196,7 @@ export default function SuggestionsPage() {
       {acceptTarget && (
         <AcceptModal
           suggestion={acceptTarget}
+          allClients={allClients}
           onClose={() => setAcceptTarget(null)}
           onAccept={handleAccept}
         />

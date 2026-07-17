@@ -1,12 +1,17 @@
-const API_URL = 'http://localhost:4000';
+const DEFAULT_API_URL = 'http://localhost:4000';
+let API_URL = DEFAULT_API_URL;
 
 document.addEventListener('DOMContentLoaded', () => {
   const currentTitle = document.getElementById('currentTitle');
   const currentDomain = document.getElementById('currentDomain');
   const bufferedCount = document.getElementById('bufferedCount');
-  const tokenInput = document.getElementById('tokenInput');
+  const pairingCodeInput = document.getElementById('pairingCodeInput');
+  const pairBtn = document.getElementById('pairBtn');
+  const pairErrorBadge = document.getElementById('pairErrorBadge');
   const savedBadge = document.getElementById('savedBadge');
-  
+  const apiUrlInput = document.getElementById('apiUrlInput');
+  const saveApiUrlBtn = document.getElementById('saveApiUrlBtn');
+
   // Active Matter elements
   const activeSessionBlock = document.getElementById('activeSessionBlock');
   const noSessionBlock = document.getElementById('noSessionBlock');
@@ -36,14 +41,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Load saved token
-  chrome.storage.local.get(['auth_token'], (r) => {
+  // Load saved API URL + token
+  chrome.storage.local.get(['auth_token', 'api_url'], (r) => {
+    API_URL = r.api_url || DEFAULT_API_URL;
+    apiUrlInput.value = API_URL;
+
     savedToken = r.auth_token;
     if (savedToken) {
-      tokenInput.value = savedToken.substring(0, 20) + '...';
+      pairingCodeInput.value = '';
+      pairingCodeInput.placeholder = 'Paired ✓';
       fetchSessionData();
     } else {
-      noSessionMsg.textContent = "Please save your auth token first";
+      noSessionMsg.textContent = "Please pair the extension first";
       startSessionBtn.disabled = true;
       startSessionBtn.style.opacity = '0.5';
     }
@@ -137,18 +146,40 @@ document.addEventListener('DOMContentLoaded', () => {
     bufferedCount.textContent = res?.bufferedCount || 0;
   });
 
-  // Save token
-  document.getElementById('saveTokenBtn').addEventListener('click', () => {
-    const token = tokenInput.value.trim();
-    if (!token || token.endsWith('...')) return;
-    chrome.runtime.sendMessage({ type: 'SET_TOKEN', token }, () => {
+  // Pair extension via one-time code from the web app
+  pairBtn.addEventListener('click', () => {
+    const code = pairingCodeInput.value.trim().toUpperCase();
+    pairErrorBadge.style.display = 'none';
+    if (!code) return;
+
+    pairBtn.textContent = 'Pairing...';
+    chrome.runtime.sendMessage({ type: 'PAIR_EXCHANGE', code }, (res) => {
+      pairBtn.textContent = 'Pair Extension';
+      if (!res?.success) {
+        pairErrorBadge.textContent = res?.error || 'Pairing failed';
+        pairErrorBadge.style.display = 'block';
+        return;
+      }
+      chrome.storage.local.get(['auth_token'], (r) => {
+        savedToken = r.auth_token;
+      });
       savedBadge.style.display = 'block';
       setTimeout(() => savedBadge.style.display = 'none', 2000);
-      savedToken = token;
+      pairingCodeInput.value = '';
+      pairingCodeInput.placeholder = 'Paired ✓';
       startSessionBtn.disabled = false;
       startSessionBtn.style.opacity = '1';
       noSessionMsg.textContent = "No active matter";
       fetchSessionData();
+    });
+  });
+
+  // Save API URL
+  saveApiUrlBtn.addEventListener('click', () => {
+    const url = apiUrlInput.value.trim().replace(/\/$/, '');
+    if (!url) return;
+    chrome.runtime.sendMessage({ type: 'SET_API_URL', apiUrl: url }, () => {
+      API_URL = url;
     });
   });
 

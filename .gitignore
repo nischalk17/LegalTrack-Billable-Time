@@ -31,17 +31,17 @@ build/
 *.AppImage
 *.snap
 *.blockmap
-electron-app/dist/
-electron-app/build/installer/
+archive/electron-app/dist/
+archive/electron-app/build/installer/
 
 # ── Electron ──────────────────────────────────
-electron-app/out/
+archive/electron-app/out/
 
 # ── Environment files ─────────────────────────
 .env.*
 backend/.env
-tracker/.env
-electron-app/.env
+archive/tracker/.env
+archive/electron-app/.env
 
 # ── Sensitive / secrets ───────────────────────
 *.pem
@@ -68,14 +68,14 @@ desktop.ini
 *.swo
 
 # ── Electron-store (encrypted local data) ─────
-electron-app/*.json
-!electron-app/package.json
-!electron-app/package-lock.json
+archive/electron-app/*.json
+!archive/electron-app/package.json
+!archive/electron-app/package-lock.json
 
 # ── Icons (binary files, add manually) ────────
-# electron-app/assets/icon.ico
-# electron-app/assets/icon.png
-# electron-app/assets/icon-paused.png
+# archive/electron-app/assets/icon.ico
+# archive/electron-app/assets/icon.png
+# archive/electron-app/assets/icon-paused.png
 # (comment above lines OUT once you add real icons)
 
 # ── Misc ──────────────────────────────────────

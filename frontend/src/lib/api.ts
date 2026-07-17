@@ -74,7 +74,7 @@ export const suggestions = {
     request<{ generated: number; suggestions: BillableSuggestion[] }>(
       '/api/suggestions/generate', { method: 'POST', body: JSON.stringify({ date }) }
     ),
-  accept: (id: string, data: { client: string; matter?: string; notes?: string }) =>
+  accept: (id: string, data: { client_id: string; matter?: string; notes?: string }) =>
     request<{ suggestion: BillableSuggestion; entry: ManualEntry }>(
       `/api/suggestions/${id}/accept`, { method: 'PATCH', body: JSON.stringify(data) }
     ),
@@ -115,6 +115,10 @@ export const rules = {
   delete: (id: string) => request<{ message: string }>(`/api/rules/${id}`, { method: 'DELETE' }),
   test: (data: { domain?: string; app_name?: string; window_title?: string; file_name?: string }) => 
     request<{ match: boolean; rule: TrackingRule | null; client_name?: string; matter?: string }>('/api/rules/test', { method: 'POST', body: JSON.stringify(data) })
+};
+
+export const extensionPairing = {
+  start: () => request<{ code: string; expires_at: string }>('/api/auth/pair/start', { method: 'POST' }),
 };
 
 export const sessions = {

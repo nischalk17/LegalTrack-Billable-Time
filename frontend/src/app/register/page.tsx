@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { auth } from '@/lib/api';
 import AuthBrandPanel from '@/components/AuthBrandPanel';
 import PasswordRules, { isPasswordValid } from '@/components/PasswordRules';
-import PasswordStrengthMeter from '@/components/PasswordStrengthMeter';
 import ThemeToggle from '@/components/ThemeToggle';
 
 export default function RegisterPage() {
@@ -64,7 +63,6 @@ export default function RegisterPage() {
                 onFocus={() => setPasswordTouched(true)}
                 required
               />
-              <PasswordStrengthMeter password={form.password} />
               {passwordTouched && <PasswordRules password={form.password} />}
             </div>
             <button className="btn btn-primary" type="submit" disabled={loading} style={{width:'100%',justifyContent:'center'}}>

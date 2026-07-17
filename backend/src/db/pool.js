@@ -14,7 +14,11 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  // Serverless Postgres (Neon, etc.) scales its compute to zero when idle
+  // and takes a few seconds to wake on the next connection — 2s was too
+  // aggressive and made the very first connection after any idle period
+  // fail with a timeout.
+  connectionTimeoutMillis: 10000,
 });
 
 pool.on('error', (err) => {

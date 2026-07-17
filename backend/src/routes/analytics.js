@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const pool = require('../db/pool');
-const auth = require('../middleware/auth');
+const auth = require('../middleware/orgAuth');
 
 /**
  * @swagger
@@ -76,39 +76,39 @@ router.get('/daily', auth, async (req, res) => {
       `SELECT EXTRACT(HOUR FROM start_time) as hour,
               ROUND(SUM(duration_seconds) / 60.0) as minutes
        FROM tracked_activities
-       WHERE user_id = $1 AND DATE(start_time) = $2
+       WHERE organization_id = $1 AND DATE(start_time) = $2
        GROUP BY hour ORDER BY hour`,
-      [req.user.id, targetDate]
+      [req.organizationId, targetDate]
     );
 
     // 2. Source Split
     const sourceSplit = await pool.query(
       `SELECT source_type, ROUND(SUM(duration_seconds) / 60.0) as minutes
        FROM tracked_activities
-       WHERE user_id = $1 AND DATE(start_time) = $2
+       WHERE organization_id = $1 AND DATE(start_time) = $2
        GROUP BY source_type`,
-      [req.user.id, targetDate]
+      [req.organizationId, targetDate]
     );
 
     // 3. Top Apps
     const topApps = await pool.query(
       `SELECT app_name, ROUND(SUM(duration_seconds) / 60.0) as minutes
        FROM tracked_activities
-       WHERE user_id = $1 AND DATE(start_time) = $2 AND app_name IS NOT NULL
+       WHERE organization_id = $1 AND DATE(start_time) = $2 AND app_name IS NOT NULL
        GROUP BY app_name
        ORDER BY minutes DESC
        LIMIT 5`,
-      [req.user.id, targetDate]
+      [req.organizationId, targetDate]
     );
 
     // 4. Totals
     const totals = await pool.query(
-      `SELECT 
+      `SELECT
          SUM(duration_seconds) as total_seconds,
          SUM(CASE WHEN client_id IS NULL THEN duration_seconds ELSE 0 END) as untagged_seconds
        FROM tracked_activities
-       WHERE user_id = $1 AND DATE(start_time) = $2`,
-      [req.user.id, targetDate]
+       WHERE organization_id = $1 AND DATE(start_time) = $2`,
+      [req.organizationId, targetDate]
     );
 
     res.json({
@@ -200,15 +200,15 @@ router.get('/clients', auth, async (req, res) => {
           client_id, 
           SUM(duration_seconds) / 60.0 as minutes
         FROM tracked_activities
-        WHERE user_id = $1 AND DATE(start_time) BETWEEN $2 AND $3
+        WHERE organization_id = $1 AND DATE(start_time) BETWEEN $2 AND $3
         GROUP BY client_id
       ),
       manual_client AS (
-        SELECT 
-          client_id, 
+        SELECT
+          client_id,
           SUM(duration_minutes) as minutes
         FROM manual_entries
-        WHERE user_id = $1 AND date BETWEEN $2 AND $3
+        WHERE organization_id = $1 AND date BETWEEN $2 AND $3
         GROUP BY client_id
       ),
       combined AS (
@@ -230,8 +230,8 @@ router.get('/clients', auth, async (req, res) => {
       ORDER BY total_minutes DESC;
     `;
     
-    const result = await pool.query(query, [req.user.id, from, to]);
-    
+    const result = await pool.query(query, [req.organizationId, from, to]);
+
     const by_client = result.rows
       .filter(r => r.client_id !== null)
       .map(r => ({
@@ -318,11 +318,11 @@ router.get('/revenue', auth, async (req, res) => {
         SUM((duration_minutes / 60.0) * COALESCE(c.default_hourly_rate, 0)) as amount_npr
       FROM manual_entries m
       LEFT JOIN clients c ON m.client_id = c.id
-      WHERE m.user_id = $1 AND m.date >= $2
+      WHERE m.organization_id = $1 AND m.date >= $2
       GROUP BY date
       ORDER BY date
     `;
-    const result = await pool.query(trendQuery, [req.user.id, from]);
+    const result = await pool.query(trendQuery, [req.organizationId, from]);
     
     const trend = result.rows.map(r => ({
       date: r.date,
@@ -402,9 +402,9 @@ router.get('/categories', auth, async (req, res) => {
     const result = await pool.query(
       `SELECT category, SUM(duration_minutes) as minutes
        FROM billable_suggestions
-       WHERE user_id = $1 AND date BETWEEN $2 AND $3
+       WHERE organization_id = $1 AND date BETWEEN $2 AND $3
        GROUP BY category`,
-      [req.user.id, from, to]
+      [req.organizationId, from, to]
     );
 
     const totalMinutes = result.rows.reduce((sum, r) => sum + parseInt(r.minutes), 0);
@@ -481,12 +481,12 @@ router.get('/weekly', auth, async (req, res) => {
         SUM(CASE WHEN client_id IS NOT NULL THEN (duration_seconds / 3600.0) * COALESCE(c.default_hourly_rate, 0) ELSE 0 END) as amount_npr
       FROM tracked_activities a
       LEFT JOIN clients c ON a.client_id = c.id
-      WHERE a.user_id = $1 AND start_time >= NOW() - make_interval(weeks => $2::int)
+      WHERE a.organization_id = $1 AND start_time >= NOW() - make_interval(weeks => $2::int)
       GROUP BY DATE_TRUNC('week', start_time)
       ORDER BY DATE_TRUNC('week', start_time)
     `;
 
-    const result = await pool.query(query, [req.user.id, weeks]);
+    const result = await pool.query(query, [req.organizationId, weeks]);
     
     res.json({
       weeks: result.rows.map(r => ({
@@ -541,9 +541,9 @@ router.get('/bills-status', auth, async (req, res) => {
     const result = await pool.query(
       `SELECT status, COUNT(*) as count, SUM(total_npr) as total_npr
        FROM bills
-       WHERE user_id = $1
+       WHERE organization_id = $1
        GROUP BY status`,
-      [req.user.id]
+      [req.organizationId]
     );
 
     res.json({

@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const pool = require('../db/pool');
-const auth = require('../middleware/auth');
+const auth = require('../middleware/orgAuth');
 const PDFDocument = require('pdfkit');
 const { query, validationResult } = require('express-validator');
 
@@ -69,11 +69,11 @@ router.get('/pdf', auth, reportValidation, async (req, res) => {
   try {
     const { date_from, date_to, client } = req.query;
 
-    const userResult = await pool.query('SELECT name FROM users WHERE id = $1', [req.user.id]);
-    const userName = userResult.rows[0]?.name || 'User';
+    const orgResult = await pool.query('SELECT name FROM organizations WHERE id = $1', [req.organizationId]);
+    const userName = orgResult.rows[0]?.name || 'Organization';
 
-    let conditions = ['m.user_id = $1'];
-    let params = [req.user.id];
+    let conditions = ['m.organization_id = $1'];
+    let params = [req.organizationId];
     let idx = 2;
 
     if (date_from) {

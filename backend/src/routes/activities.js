@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const { body, query, validationResult } = require('express-validator');
 const pool = require('../db/pool');
-const auth = require('../middleware/auth');
+const auth = require('../middleware/orgAuth');
 const { matchRules } = require('../utils/matchRules');
 const { convertActivityToEntry } = require('../utils/entryConverter');
 
@@ -138,8 +138,8 @@ router.post('/', auth, [
         final_matter = sessionRes.rows[0].matter;
       } else {
         const rulesRes = await pool.query(
-          `SELECT * FROM tracking_rules WHERE user_id = $1 ORDER BY priority DESC`,
-          [req.user.id]
+          `SELECT * FROM tracking_rules WHERE organization_id = $1 ORDER BY priority DESC`,
+          [req.organizationId]
         );
         const match = matchRules(req.body, rulesRes.rows);
         if (match) {
@@ -151,10 +151,10 @@ router.post('/', auth, [
 
     const result = await pool.query(
       `INSERT INTO tracked_activities
-        (user_id, source_type, app_name, window_title, domain, file_name, url, start_time, end_time, duration_seconds, client_id, matter)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+        (user_id, organization_id, source_type, app_name, window_title, domain, file_name, url, start_time, end_time, duration_seconds, client_id, matter)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING *`,
-      [req.user.id, source_type, app_name, window_title, domain, file_name, url,
+      [req.user.id, req.organizationId, source_type, app_name, window_title, domain, file_name, url,
        start_time, end_time, normalizedDurationSeconds, final_client_id, final_matter]
     );
 
@@ -279,8 +279,8 @@ router.post('/batch', auth, async (req, res) => {
     const inserted = [];
 
     const rulesRes = await client.query(
-      `SELECT * FROM tracking_rules WHERE user_id = $1 ORDER BY priority DESC`,
-      [req.user.id]
+      `SELECT * FROM tracking_rules WHERE organization_id = $1 ORDER BY priority DESC`,
+      [req.organizationId]
     );
     const rules = rulesRes.rows;
 
@@ -326,10 +326,10 @@ router.post('/batch', auth, async (req, res) => {
 
       const r = await client.query(
         `INSERT INTO tracked_activities
-          (user_id, source_type, app_name, window_title, domain, file_name, url, start_time, end_time, duration_seconds, client_id, matter)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+          (user_id, organization_id, source_type, app_name, window_title, domain, file_name, url, start_time, end_time, duration_seconds, client_id, matter)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
          RETURNING *`,
-        [req.user.id, a.source_type, a.app_name, a.window_title, a.domain,
+        [req.user.id, req.organizationId, a.source_type, a.app_name, a.window_title, a.domain,
          a.file_name, a.url, a.start_time, a.end_time, aNormalizedDurationSeconds, final_client_id, final_matter]
       );
 
@@ -381,9 +381,9 @@ router.post('/batch', auth, async (req, res) => {
 router.get('/untagged', auth, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT COUNT(*) FROM tracked_activities 
-       WHERE user_id = $1 AND client_id IS NULL AND start_time >= NOW() - INTERVAL '7 days'`,
-      [req.user.id]
+      `SELECT COUNT(*) FROM tracked_activities
+       WHERE organization_id = $1 AND client_id IS NULL AND start_time >= NOW() - INTERVAL '7 days'`,
+      [req.organizationId]
     );
     res.json({ count: parseInt(result.rows[0].count, 10) });
   } catch (error) {
@@ -463,16 +463,16 @@ router.patch('/:id/assign', auth, [
   const { client_id, matter } = req.body;
   try {
     const ownedClient = await pool.query(
-      'SELECT id FROM clients WHERE id = $1 AND user_id = $2',
-      [client_id, req.user.id]
+      'SELECT id FROM clients WHERE id = $1 AND organization_id = $2',
+      [client_id, req.organizationId]
     );
     if (ownedClient.rows.length === 0) {
       return res.status(404).json({ error: 'Client not found' });
     }
 
     const { rows } = await pool.query(
-      'UPDATE tracked_activities SET client_id = $1, matter = $2 WHERE id = $3 AND user_id = $4 RETURNING *',
-      [client_id, matter || null, req.params.id, req.user.id]
+      'UPDATE tracked_activities SET client_id = $1, matter = $2 WHERE id = $3 AND organization_id = $4 RETURNING *',
+      [client_id, matter || null, req.params.id, req.organizationId]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Activity not found' });
 
@@ -566,8 +566,8 @@ router.get('/', auth, [
 
   const { source_type, date, limit = 50, offset = 0 } = req.query;
 
-  let conditions = ['a.user_id = $1'];
-  let params = [req.user.id];
+  let conditions = ['a.organization_id = $1'];
+  let params = [req.organizationId];
   let idx = 2;
 
   if (source_type) {
@@ -679,19 +679,19 @@ router.get('/stats', auth, [
         SUM(duration_seconds) as total_seconds,
         ROUND(SUM(duration_seconds) / 3600.0, 2) as total_hours
        FROM tracked_activities
-       WHERE user_id = $1 AND DATE(start_time) = $2
+       WHERE organization_id = $1 AND DATE(start_time) = $2
        GROUP BY source_type`,
-      [req.user.id, targetDate]
+      [req.organizationId, targetDate]
     );
 
     const topApps = await pool.query(
       `SELECT app_name, SUM(duration_seconds) as total_seconds
        FROM tracked_activities
-       WHERE user_id = $1 AND DATE(start_time) = $2 AND app_name IS NOT NULL
+       WHERE organization_id = $1 AND DATE(start_time) = $2 AND app_name IS NOT NULL
        GROUP BY app_name
        ORDER BY total_seconds DESC
        LIMIT 5`,
-      [req.user.id, targetDate]
+      [req.organizationId, targetDate]
     );
 
     res.json({

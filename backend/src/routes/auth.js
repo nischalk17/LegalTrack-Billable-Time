@@ -76,18 +76,38 @@ router.post('/register', [
 
   const { email, password, name } = req.body;
 
+  const dbClient = await pool.connect();
   try {
-    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    const existing = await dbClient.query('SELECT id FROM users WHERE email = $1', [email]);
     if (existing.rows.length > 0) {
       return res.status(409).json({ error: 'Email already registered' });
     }
 
-    const result = await pool.query(
+    await dbClient.query('BEGIN');
+
+    const result = await dbClient.query(
       'INSERT INTO users (email, name, password_hash) VALUES ($1, $2, crypt($3, gen_salt(\'bf\'))) RETURNING id, email, name, created_at',
       [email, name, password]
     );
-
     const user = result.rows[0];
+
+    // Every new user gets a personal organization (owner role) — this is
+    // what lets a solo lawyer's usage stay unchanged while also supporting
+    // being invited into other firms' organizations later.
+    const orgResult = await dbClient.query(
+      `INSERT INTO organizations (name) VALUES ($1) RETURNING id`,
+      [`${name}'s Organization`]
+    );
+    const organizationId = orgResult.rows[0].id;
+
+    await dbClient.query(
+      `INSERT INTO organization_members (organization_id, user_id, role) VALUES ($1, $2, 'owner')`,
+      [organizationId, user.id]
+    );
+    await dbClient.query('UPDATE users SET active_organization_id = $1 WHERE id = $2', [organizationId, user.id]);
+
+    await dbClient.query('COMMIT');
+
     const token = jwt.sign(
       { id: user.id, email: user.email, name: user.name },
       process.env.JWT_SECRET,
@@ -96,8 +116,11 @@ router.post('/register', [
 
     res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name } });
   } catch (err) {
+    await dbClient.query('ROLLBACK');
     console.error('Register error:', err);
     res.status(500).json({ error: 'Server error' });
+  } finally {
+    dbClient.release();
   }
 });
 
@@ -234,7 +257,12 @@ router.post('/login', [
 router.get('/me', require('../middleware/auth'), async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, email, name, created_at FROM users WHERE id = $1',
+      `SELECT u.id, u.email, u.name, u.created_at,
+              om.organization_id, om.role, o.name as organization_name
+       FROM users u
+       LEFT JOIN organization_members om ON om.organization_id = u.active_organization_id AND om.user_id = u.id
+       LEFT JOIN organizations o ON o.id = om.organization_id
+       WHERE u.id = $1`,
       [req.user.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });

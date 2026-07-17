@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const { body, validationResult } = require('express-validator');
 const pool = require('../db/pool');
-const auth = require('../middleware/auth');
+const auth = require('../middleware/orgAuth');
 
 const entryValidation = [
   body('client').trim().notEmpty().withMessage('Client is required'),
@@ -92,10 +92,10 @@ router.post('/', auth, entryValidation, async (req, res) => {
 
   try {
     const result = await pool.query(
-      `INSERT INTO manual_entries (user_id, client, matter, description, date, duration_minutes, source_type, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `INSERT INTO manual_entries (user_id, organization_id, client, matter, description, date, duration_minutes, source_type, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        RETURNING *`,
-      [req.user.id, client, matter, description, date, duration_minutes, source_type, notes]
+      [req.user.id, req.organizationId, client, matter, description, date, duration_minutes, source_type, notes]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -163,8 +163,8 @@ router.post('/', auth, entryValidation, async (req, res) => {
 // GET /api/entries - List all entries for user
 router.get('/', auth, async (req, res) => {
   const { client, date, limit = 50, offset = 0 } = req.query;
-  let conditions = ['user_id = $1'];
-  let params = [req.user.id];
+  let conditions = ['organization_id = $1'];
+  let params = [req.organizationId];
   let idx = 2;
 
   if (client) {
@@ -245,8 +245,8 @@ router.get('/', auth, async (req, res) => {
 router.get('/:id', auth, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM manual_entries WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
+      'SELECT * FROM manual_entries WHERE id = $1 AND organization_id = $2',
+      [req.params.id, req.organizationId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Entry not found' });
     res.json(result.rows[0]);
@@ -341,10 +341,10 @@ router.put('/:id', auth, entryValidation, async (req, res) => {
       `UPDATE manual_entries
        SET client=$1, matter=$2, description=$3, date=$4,
            duration_minutes=$5, source_type=$6, notes=$7, updated_at=NOW()
-       WHERE id=$8 AND user_id=$9
+       WHERE id=$8 AND organization_id=$9
        RETURNING *`,
       [client, matter, description, date, duration_minutes, source_type || 'manual', notes,
-       req.params.id, req.user.id]
+       req.params.id, req.organizationId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Entry not found' });
     res.json(result.rows[0]);
@@ -399,8 +399,8 @@ router.put('/:id', auth, entryValidation, async (req, res) => {
 router.delete('/:id', auth, async (req, res) => {
   try {
     const result = await pool.query(
-      'DELETE FROM manual_entries WHERE id = $1 AND user_id = $2 RETURNING id',
-      [req.params.id, req.user.id]
+      'DELETE FROM manual_entries WHERE id = $1 AND organization_id = $2 RETURNING id',
+      [req.params.id, req.organizationId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Entry not found' });
     res.json({ message: 'Entry deleted', id: req.params.id });

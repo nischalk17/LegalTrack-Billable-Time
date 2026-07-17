@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const pool = require('../db/pool');
-const auth = require('../middleware/auth');
+const auth = require('../middleware/orgAuth');
 const { body, validationResult } = require('express-validator');
 
 // ============================================================
@@ -114,11 +114,11 @@ router.post('/generate', auth, [
     const activities = await pool.query(
       `SELECT ta.* FROM tracked_activities ta
        LEFT JOIN billable_suggestions bs ON bs.activity_id = ta.id
-       WHERE ta.user_id = $1
+       WHERE ta.organization_id = $1
          AND DATE(ta.start_time) = $2
          AND bs.id IS NULL
          AND ta.duration_seconds >= 60`,  // Skip activities under 1 minute
-      [req.user.id, targetDate]
+      [req.organizationId, targetDate]
     );
 
     if (activities.rows.length === 0) {
@@ -137,10 +137,10 @@ router.post('/generate', auth, [
 
         const result = await client.query(
           `INSERT INTO billable_suggestions
-            (user_id, activity_id, description, category, app_name, domain, duration_minutes, date)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+            (user_id, organization_id, activity_id, description, category, app_name, domain, duration_minutes, date)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
            RETURNING *`,
-          [req.user.id, activity.id, description, category,
+          [activity.user_id, req.organizationId, activity.id, description, category,
            activity.app_name, activity.domain, duration_minutes, targetDate]
         );
         suggestions.push(result.rows[0]);
@@ -203,8 +203,8 @@ router.post('/generate', auth, [
 router.get('/', auth, async (req, res) => {
   const { status = 'pending', date, limit = 50, offset = 0 } = req.query;
 
-  let conditions = ['user_id = $1'];
-  let params = [req.user.id];
+  let conditions = ['organization_id = $1'];
+  let params = [req.organizationId];
   let idx = 2;
 
   if (status) {
@@ -286,8 +286,8 @@ router.patch('/:id/accept', auth, [
   const dbClient = await pool.connect();
   try {
     const suggestion = await dbClient.query(
-      'SELECT * FROM billable_suggestions WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
+      'SELECT * FROM billable_suggestions WHERE id = $1 AND organization_id = $2',
+      [req.params.id, req.organizationId]
     );
 
     if (suggestion.rows.length === 0) {
@@ -295,8 +295,8 @@ router.patch('/:id/accept', auth, [
     }
 
     const clientRes = await dbClient.query(
-      'SELECT id, name FROM clients WHERE id = $1 AND user_id = $2',
-      [client_id, req.user.id]
+      'SELECT id, name FROM clients WHERE id = $1 AND organization_id = $2',
+      [client_id, req.organizationId]
     );
     if (clientRes.rows.length === 0) {
       return res.status(404).json({ error: 'Client not found' });
@@ -308,10 +308,10 @@ router.patch('/:id/accept', auth, [
 
     // Create manual entry from suggestion
     const entry = await dbClient.query(
-      `INSERT INTO manual_entries (user_id, client_id, client, matter, description, date, duration_minutes, source_type, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'suggestion',$8)
+      `INSERT INTO manual_entries (user_id, organization_id, client_id, client, matter, description, date, duration_minutes, source_type, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'suggestion',$9)
        RETURNING *`,
-      [req.user.id, client_id, clientName, matter, s.description, s.date, s.duration_minutes, notes]
+      [s.user_id, req.organizationId, client_id, clientName, matter, s.description, s.date, s.duration_minutes, notes]
     );
 
     // Mark suggestion as accepted
@@ -357,8 +357,8 @@ router.patch('/:id/accept', auth, [
 router.patch('/:id/dismiss', auth, async (req, res) => {
   try {
     const result = await pool.query(
-      'UPDATE billable_suggestions SET status = $1 WHERE id = $2 AND user_id = $3 RETURNING *',
-      ['dismissed', req.params.id, req.user.id]
+      'UPDATE billable_suggestions SET status = $1 WHERE id = $2 AND organization_id = $3 RETURNING *',
+      ['dismissed', req.params.id, req.organizationId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Suggestion not found' });
     res.json(result.rows[0]);

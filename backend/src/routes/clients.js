@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool = require('../db/pool');
-const auth = require('../middleware/auth');
+const auth = require('../middleware/orgAuth');
+const { requireRole } = auth;
 const { body, validationResult } = require('express-validator');
 
 const clientValidation = [
@@ -116,8 +117,8 @@ const clientValidation = [
 router.get('/', auth, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT * FROM clients WHERE user_id = $1 ORDER BY name ASC`,
-      [req.user.id]
+      `SELECT * FROM clients WHERE organization_id = $1 ORDER BY name ASC`,
+      [req.organizationId]
     );
     res.json(rows);
   } catch (err) {
@@ -271,8 +272,8 @@ router.get('/', auth, async (req, res) => {
 router.get('/:id', auth, async (req, res) => {
   try {
     const clientRes = await pool.query(
-      'SELECT * FROM clients WHERE id = $1 AND user_id = $2',
-      [req.params.id, req.user.id]
+      'SELECT * FROM clients WHERE id = $1 AND organization_id = $2',
+      [req.params.id, req.organizationId]
     );
 
     if (clientRes.rows.length === 0) {
@@ -310,10 +311,10 @@ router.post('/', auth, clientValidation, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `INSERT INTO clients (
-        user_id, name, contact_person, email, phone, address, 
+        user_id, organization_id, name, contact_person, email, phone, address,
         pan_number, default_hourly_rate, is_vat_applicable, notes
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-      [req.user.id, name, contact_person, email, phone, address, pan_number, default_hourly_rate, is_vat_applicable, notes]
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      [req.user.id, req.organizationId, name, contact_person, email, phone, address, pan_number, default_hourly_rate, is_vat_applicable, notes]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -345,8 +346,8 @@ router.put('/:id', auth, clientValidation, async (req, res) => {
         is_vat_applicable = COALESCE($8, is_vat_applicable),
         notes = COALESCE($9, notes),
         updated_at = NOW()
-       WHERE id = $10 AND user_id = $11 RETURNING *`,
-      [name, contact_person, email, phone, address, pan_number, default_hourly_rate, is_vat_applicable, notes, req.params.id, req.user.id]
+       WHERE id = $10 AND organization_id = $11 RETURNING *`,
+      [name, contact_person, email, phone, address, pan_number, default_hourly_rate, is_vat_applicable, notes, req.params.id, req.organizationId]
     );
 
     if (rows.length === 0) return res.status(404).json({ error: 'Client not found' });
@@ -358,11 +359,11 @@ router.put('/:id', auth, clientValidation, async (req, res) => {
 });
 
 // DELETE /api/clients/:id - Delete client
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', auth, requireRole('owner', 'admin'), async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'DELETE FROM clients WHERE id = $1 AND user_id = $2 RETURNING id',
-      [req.params.id, req.user.id]
+      'DELETE FROM clients WHERE id = $1 AND organization_id = $2 RETURNING id',
+      [req.params.id, req.organizationId]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Client not found' });
     res.json({ message: 'Client deleted', id: rows[0].id });

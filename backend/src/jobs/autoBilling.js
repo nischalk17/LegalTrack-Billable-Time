@@ -6,19 +6,19 @@ const { sendDraftBillReadyEmail } = require('../utils/mailer');
 const EARLIEST_ENTRY_DATE = '2000-01-01';
 
 /**
- * For every (user, client) pair with unbilled manual_entries, generates a
- * draft bill covering all of that client's unbilled time and emails the
- * lawyer that it's ready to review. Runs monthly; also exported so it can
- * be triggered manually/from tests.
+ * For every (organization, client) pair with unbilled manual_entries
+ * (shared across everyone in the org), generates a draft bill covering all
+ * of that client's unbilled time and emails every owner/admin in the
+ * organization that it's ready to review. Runs monthly; also exported so it
+ * can be triggered manually/from tests.
  */
 async function runAutoBilling() {
   const today = new Date().toISOString().split('T')[0];
 
   const { rows: pairs } = await pool.query(`
-    SELECT DISTINCT me.user_id, me.client_id, u.email, u.name
-    FROM manual_entries me
-    JOIN users u ON u.id = me.user_id
-    WHERE me.billed_at IS NULL AND me.client_id IS NOT NULL
+    SELECT DISTINCT organization_id, client_id
+    FROM manual_entries
+    WHERE billed_at IS NULL AND client_id IS NOT NULL AND organization_id IS NOT NULL
   `);
 
   console.log(`[auto-billing] found ${pairs.length} client(s) with unbilled time`);
@@ -27,8 +27,16 @@ async function runAutoBilling() {
     const dbClient = await pool.connect();
     try {
       await dbClient.query('BEGIN');
+
+      // Attribute the auto-generated bill to one of the org's owners.
+      const ownerRes = await dbClient.query(
+        `SELECT user_id FROM organization_members WHERE organization_id = $1 AND role = 'owner' ORDER BY created_at ASC LIMIT 1`,
+        [pair.organization_id]
+      );
+      const createdByUserId = ownerRes.rows[0]?.user_id || null;
+
       const result = await generateBillForClient(
-        dbClient, pair.user_id, pair.client_id, EARLIEST_ENTRY_DATE, today, null
+        dbClient, pair.organization_id, createdByUserId, pair.client_id, EARLIEST_ENTRY_DATE, today, null
       );
 
       if (result.error) {
@@ -38,14 +46,23 @@ async function runAutoBilling() {
 
       await dbClient.query('COMMIT');
 
+      const recipientsRes = await pool.query(
+        `SELECT u.email FROM organization_members om
+         JOIN users u ON u.id = om.user_id
+         WHERE om.organization_id = $1 AND om.role IN ('owner', 'admin')`,
+        [pair.organization_id]
+      );
+
       const billUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/clients/${pair.client_id}`;
-      await sendDraftBillReadyEmail({
-        to: pair.email,
-        clientName: result.client.name,
-        billNumber: result.bill.bill_number,
-        totalNpr: result.bill.total_npr,
-        billUrl,
-      });
+      for (const recipient of recipientsRes.rows) {
+        await sendDraftBillReadyEmail({
+          to: recipient.email,
+          clientName: result.client.name,
+          billNumber: result.bill.bill_number,
+          totalNpr: result.bill.total_npr,
+          billUrl,
+        });
+      }
     } catch (err) {
       await dbClient.query('ROLLBACK');
       console.error('[auto-billing] error for client', pair.client_id, err);

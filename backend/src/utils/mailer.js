@@ -32,4 +32,30 @@ async function sendDraftBillReadyEmail({ to, clientName, billNumber, totalNpr, b
   }
 }
 
-module.exports = { sendDraftBillReadyEmail };
+/**
+ * Notifies an existing user they've been added to an organization.
+ * Fails soft, same as sendDraftBillReadyEmail.
+ */
+async function sendOrganizationInviteEmail({ to, inviteeName, organizationName, role }) {
+  if (!resend || !process.env.EMAIL_FROM) {
+    console.warn('Mailer not configured (RESEND_API_KEY/EMAIL_FROM missing); skipping email to', to);
+    return;
+  }
+
+  try {
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM,
+      to,
+      subject: `You've been added to ${organizationName} on LegalTrack`,
+      html: `
+        <p>Hi ${inviteeName},</p>
+        <p>You've been added to <strong>${organizationName}</strong> as a <strong>${role}</strong>.</p>
+        <p>Switch to it from the organization menu in LegalTrack to start collaborating on shared clients and bills.</p>
+      `,
+    });
+  } catch (err) {
+    console.error('Failed to send organization invite email:', err.message);
+  }
+}
+
+module.exports = { sendDraftBillReadyEmail, sendOrganizationInviteEmail };

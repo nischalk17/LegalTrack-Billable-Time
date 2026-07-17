@@ -3,8 +3,8 @@
  */
 async function convertActivityToEntry(dbClient, activity) {
   const {
-    id, user_id, client_id, matter, 
-    window_title, app_name, domain, 
+    id, user_id, organization_id, client_id, matter,
+    window_title, app_name, domain,
     start_time, duration_seconds, source_type
   } = activity;
 
@@ -21,14 +21,14 @@ async function convertActivityToEntry(dbClient, activity) {
   
   try {
     // Get client name for the 'client' column in manual_entries (legacy field)
-    const clientRes = await dbClient.query('SELECT name FROM clients WHERE id = $1', [client_id]);
+    const clientRes = await dbClient.query('SELECT name FROM clients WHERE id = $1 AND organization_id = $2', [client_id, organization_id]);
     const clientName = clientRes.rows[0]?.name || 'Unknown Client';
 
     // Insert into manual_entries
     const result = await dbClient.query(
-      `INSERT INTO manual_entries 
-        (user_id, client_id, client, matter, description, date, duration_minutes, source_type, activity_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO manual_entries
+        (user_id, organization_id, client_id, client, matter, description, date, duration_minutes, source_type, activity_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (activity_id) DO UPDATE SET
          client_id = EXCLUDED.client_id,
          client = EXCLUDED.client,
@@ -38,7 +38,7 @@ async function convertActivityToEntry(dbClient, activity) {
          duration_minutes = EXCLUDED.duration_minutes,
          updated_at = NOW()
        RETURNING *`,
-      [user_id, client_id, clientName, matter, description, date, duration_minutes, source_type, id]
+      [user_id, organization_id, client_id, clientName, matter, description, date, duration_minutes, source_type, id]
     );
 
     return result.rows[0];

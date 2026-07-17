@@ -132,6 +132,25 @@ export const extensionPairing = {
   start: () => request<{ code: string; expires_at: string }>('/api/auth/pair/start', { method: 'POST' }),
 };
 
+export const organizations = {
+  me: () => request<Organization>('/api/organizations/me'),
+  mine: () => request<OrganizationSummary[]>('/api/organizations/mine'),
+  switch: (organizationId: string) =>
+    request<{ organization_id: string; role: OrgRole }>('/api/organizations/switch', {
+      method: 'POST', body: JSON.stringify({ organization_id: organizationId })
+    }),
+  invite: (email: string, role: OrgRole) =>
+    request<{ message: string; user_id: string; role: OrgRole }>('/api/organizations/invite', {
+      method: 'POST', body: JSON.stringify({ email, role })
+    }),
+  updateMemberRole: (userId: string, role: OrgRole) =>
+    request<OrganizationMember>(`/api/organizations/members/${userId}`, {
+      method: 'PATCH', body: JSON.stringify({ role })
+    }),
+  removeMember: (userId: string) =>
+    request<{ message: string }>(`/api/organizations/members/${userId}`, { method: 'DELETE' }),
+};
+
 export const sessions = {
   active: () => request<ActiveSession | null>('/api/sessions/active'),
   start: (data: { client_id: string; matter?: string }) => request<ActiveSession>('/api/sessions/start', { method: 'POST', body: JSON.stringify(data) }),
@@ -147,7 +166,14 @@ export const analytics = {
   getBillsStatus: () => request<any>('/api/analytics/bills-status'),
 };
 
-export interface User { id: string; email: string; name: string; created_at: string; }
+export interface User {
+  id: string; email: string; name: string; created_at: string;
+  organization_id?: string; organization_name?: string; role?: OrgRole;
+}
+export type OrgRole = 'owner' | 'admin' | 'lawyer' | 'paralegal';
+export interface OrganizationMember { user_id: string; name: string; email: string; role: OrgRole; joined_at: string; }
+export interface Organization { id: string; name: string; created_at: string; role: OrgRole; members: OrganizationMember[]; }
+export interface OrganizationSummary { id: string; name: string; role: OrgRole; is_active: boolean; }
 export interface Activity {
   id: string; user_id: string; source_type: 'browser' | 'desktop';
   app_name: string; window_title: string; domain: string;

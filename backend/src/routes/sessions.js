@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const pool = require('../db/pool');
-const auth = require('../middleware/auth');
+const auth = require('../middleware/orgAuth');
 const { body, validationResult } = require('express-validator');
 
 // POST /api/sessions/start
@@ -65,8 +65,8 @@ router.post('/start', auth, [
   const client = await pool.connect();
   try {
     const ownedClient = await client.query(
-      'SELECT id FROM clients WHERE id = $1 AND user_id = $2',
-      [client_id, req.user.id]
+      'SELECT id FROM clients WHERE id = $1 AND organization_id = $2',
+      [client_id, req.organizationId]
     );
     if (ownedClient.rows.length === 0) {
       return res.status(404).json({ error: 'Client not found' });
@@ -74,18 +74,19 @@ router.post('/start', auth, [
 
     await client.query('BEGIN');
 
-    // End any currently active session
+    // End any currently active session (per-user — each lawyer tracks their
+    // own active client/matter context independently of teammates).
     await client.query(
-      `UPDATE active_sessions SET ended_at = NOW(), is_active = false 
+      `UPDATE active_sessions SET ended_at = NOW(), is_active = false
        WHERE user_id = $1 AND is_active = true`,
       [req.user.id]
     );
 
     // Start new session
     const result = await client.query(
-      `INSERT INTO active_sessions (user_id, client_id, matter) 
-       VALUES ($1, $2, $3) RETURNING *`,
-      [req.user.id, client_id, matter || null]
+      `INSERT INTO active_sessions (user_id, organization_id, client_id, matter)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [req.user.id, req.organizationId, client_id, matter || null]
     );
 
     await client.query('COMMIT');

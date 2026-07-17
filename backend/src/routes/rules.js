@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const pool = require('../db/pool');
-const auth = require('../middleware/auth');
+const auth = require('../middleware/orgAuth');
 const { matchRules } = require('../utils/matchRules');
 const { body, validationResult } = require('express-validator');
 
@@ -101,12 +101,12 @@ const ruleValidation = [
 router.get('/', auth, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT r.*, c.name as client_name 
+      `SELECT r.*, c.name as client_name
        FROM tracking_rules r
        JOIN clients c ON r.client_id = c.id
-       WHERE r.user_id = $1
+       WHERE r.organization_id = $1
        ORDER BY priority DESC, created_at DESC`,
-      [req.user.id]
+      [req.organizationId]
     );
     res.json(rows);
   } catch (error) {
@@ -132,17 +132,17 @@ router.post('/', auth, ruleValidation, async (req, res) => {
   }
   try {
     const ownedClient = await pool.query(
-      'SELECT id FROM clients WHERE id = $1 AND user_id = $2',
-      [client_id, req.user.id]
+      'SELECT id FROM clients WHERE id = $1 AND organization_id = $2',
+      [client_id, req.organizationId]
     );
     if (ownedClient.rows.length === 0) {
       return res.status(404).json({ error: 'Client not found' });
     }
 
     const result = await pool.query(
-      `INSERT INTO tracking_rules (user_id, client_id, matter, rule_type, pattern, match_type, priority)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [req.user.id, client_id, matter || null, rule_type, pattern, match_type, priority || 0]
+      `INSERT INTO tracking_rules (user_id, organization_id, client_id, matter, rule_type, pattern, match_type, priority)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [req.user.id, req.organizationId, client_id, matter || null, rule_type, pattern, match_type, priority || 0]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -260,8 +260,8 @@ router.put('/:id', auth, [
   try {
     if (client_id) {
       const ownedClient = await pool.query(
-        'SELECT id FROM clients WHERE id = $1 AND user_id = $2',
-        [client_id, req.user.id]
+        'SELECT id FROM clients WHERE id = $1 AND organization_id = $2',
+        [client_id, req.organizationId]
       );
       if (ownedClient.rows.length === 0) {
         return res.status(404).json({ error: 'Client not found' });
@@ -276,8 +276,8 @@ router.put('/:id', auth, [
         pattern = COALESCE($4, pattern),
         match_type = COALESCE($5, match_type),
         priority = COALESCE($6, priority)
-       WHERE id = $7 AND user_id = $8 RETURNING *`,
-      [client_id, matter, rule_type, pattern, match_type, priority, req.params.id, req.user.id]
+       WHERE id = $7 AND organization_id = $8 RETURNING *`,
+      [client_id, matter, rule_type, pattern, match_type, priority, req.params.id, req.organizationId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Rule not found' });
     res.json(result.rows[0]);
@@ -291,8 +291,8 @@ router.put('/:id', auth, [
 router.delete('/:id', auth, async (req, res) => {
   try {
     const result = await pool.query(
-      'DELETE FROM tracking_rules WHERE id = $1 AND user_id = $2 RETURNING id',
-      [req.params.id, req.user.id]
+      'DELETE FROM tracking_rules WHERE id = $1 AND organization_id = $2 RETURNING id',
+      [req.params.id, req.organizationId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Rule not found' });
     res.json({ message: 'Rule deleted' });
@@ -374,12 +374,12 @@ router.post('/test', auth, async (req, res) => {
   const activity = req.body;
   try {
     const rulesRes = await pool.query(
-      `SELECT r.*, c.name as client_name 
+      `SELECT r.*, c.name as client_name
        FROM tracking_rules r
        JOIN clients c ON r.client_id = c.id
-       WHERE r.user_id = $1
+       WHERE r.organization_id = $1
        ORDER BY priority DESC, created_at DESC`,
-      [req.user.id]
+      [req.organizationId]
     );
     const rules = rulesRes.rows;
     const match = matchRules(activity, rules);

@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool = require('../db/pool');
-const auth = require('../middleware/auth');
+const auth = require('../middleware/orgAuth');
+const { requireRole } = auth;
 const PDFDocument = require('pdfkit');
 const { body, validationResult } = require('express-validator');
 
@@ -86,18 +87,17 @@ const generateBillValidation = [
 
 /**
  * Generates a draft bill for a client from their unbilled manual_entries
- * in the given date range, and marks those entries as billed.
- * Caller owns the dbClient connection/transaction lifecycle.
- * Returns null if the client doesn't exist for this user, or if there are
- * no unbilled entries in range (bill.notFound / bill.noEntries respectively).
+ * (shared across the whole organization) in the given date range, and marks
+ * those entries as billed. Caller owns the dbClient connection/transaction
+ * lifecycle. Returns { error: 'client_not_found' | 'no_entries' } on failure.
  */
-async function generateBillForClient(dbClient, userId, clientId, dateFrom, dateTo, matter) {
-  const clientRes = await dbClient.query('SELECT * FROM clients WHERE id = $1 AND user_id = $2', [clientId, userId]);
+async function generateBillForClient(dbClient, organizationId, createdByUserId, clientId, dateFrom, dateTo, matter) {
+  const clientRes = await dbClient.query('SELECT * FROM clients WHERE id = $1 AND organization_id = $2', [clientId, organizationId]);
   if (clientRes.rows.length === 0) return { error: 'client_not_found' };
   const client = clientRes.rows[0];
 
-  let conditions = ['user_id = $1', 'client_id = $2', 'date >= $3', 'date <= $4', 'billed_at IS NULL'];
-  let params = [userId, clientId, dateFrom, dateTo];
+  let conditions = ['organization_id = $1', 'client_id = $2', 'date >= $3', 'date <= $4', 'billed_at IS NULL'];
+  let params = [organizationId, clientId, dateFrom, dateTo];
   let idx = 5;
   if (matter) {
     conditions.push(`matter ILIKE $${idx++}`);
@@ -131,23 +131,23 @@ async function generateBillForClient(dbClient, userId, clientId, dateFrom, dateT
   const vat_amount_npr = client.is_vat_applicable ? Math.round(subtotal_npr * 0.13) : 0;
   const total_npr = subtotal_npr + vat_amount_npr;
 
-  const sequenceRes = await dbClient.query(`SELECT COUNT(*) + 1 as seq FROM bills WHERE user_id = $1 AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM NOW())`, [userId]);
+  const sequenceRes = await dbClient.query(`SELECT COUNT(*) + 1 as seq FROM bills WHERE organization_id = $1 AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM NOW())`, [organizationId]);
   const sequence = sequenceRes.rows[0].seq.toString().padStart(3, '0');
   const currentYear = new Date().getFullYear();
   const bill_number = `INV-${currentYear}-${sequence}`;
 
   const billInsert = await dbClient.query(
-    `INSERT INTO bills (user_id, client_id, bill_number, matter, date_from, date_to, subtotal_npr, vat_amount_npr, total_npr, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'draft') RETURNING *`,
-    [userId, clientId, bill_number, matter || null, dateFrom, dateTo, subtotal_npr, vat_amount_npr, total_npr]
+    `INSERT INTO bills (user_id, organization_id, client_id, bill_number, matter, date_from, date_to, subtotal_npr, vat_amount_npr, total_npr, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'draft') RETURNING *`,
+    [createdByUserId, organizationId, clientId, bill_number, matter || null, dateFrom, dateTo, subtotal_npr, vat_amount_npr, total_npr]
   );
   const bill = billInsert.rows[0];
 
   for (const li of lineItems) {
     await dbClient.query(
-      `INSERT INTO bill_line_items (bill_id, entry_id, description, date, duration_minutes, hourly_rate_npr, amount_npr, source)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [bill.id, li.entry_id, li.description, li.date, li.duration_minutes, li.hourly_rate_npr, li.amount_npr, li.source]
+      `INSERT INTO bill_line_items (bill_id, organization_id, entry_id, description, date, duration_minutes, hourly_rate_npr, amount_npr, source)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [bill.id, organizationId, li.entry_id, li.description, li.date, li.duration_minutes, li.hourly_rate_npr, li.amount_npr, li.source]
     );
   }
 
@@ -167,7 +167,7 @@ router.post('/generate', auth, generateBillValidation, async (req, res) => {
   const dbClient = await pool.connect();
   try {
     await dbClient.query('BEGIN');
-    const result = await generateBillForClient(dbClient, req.user.id, client_id, date_from, date_to, matter);
+    const result = await generateBillForClient(dbClient, req.organizationId, req.user.id, client_id, date_from, date_to, matter);
 
     if (result.error === 'client_not_found') {
       await dbClient.query('ROLLBACK');
@@ -221,10 +221,10 @@ router.post('/generate', auth, generateBillValidation, async (req, res) => {
 router.get('/', auth, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT b.*, c.name as client_name 
-       FROM bills b JOIN clients c ON b.client_id = c.id 
-       WHERE b.user_id = $1 ORDER BY b.created_at DESC`,
-      [req.user.id]
+      `SELECT b.*, c.name as client_name
+       FROM bills b JOIN clients c ON b.client_id = c.id
+       WHERE b.organization_id = $1 ORDER BY b.created_at DESC`,
+      [req.organizationId]
     );
     res.json(rows);
   } catch (err) {
@@ -279,8 +279,8 @@ router.get('/:id', auth, async (req, res) => {
     const billRes = await pool.query(
       `SELECT b.*, c.name as client_name, c.address, c.pan_number, c.email
        FROM bills b JOIN clients c ON b.client_id = c.id
-       WHERE b.id = $1 AND b.user_id = $2`,
-      [req.params.id, req.user.id]
+       WHERE b.id = $1 AND b.organization_id = $2`,
+      [req.params.id, req.organizationId]
     );
     if (billRes.rows.length === 0) return res.status(404).json({ error: 'Bill not found' });
     const bill = billRes.rows[0];
@@ -361,8 +361,8 @@ router.patch('/:id/status', auth, async (req, res) => {
   if (!['draft', 'sent', 'paid'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
   try {
     const { rows } = await pool.query(
-      'UPDATE bills SET status = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3 RETURNING *',
-      [status, req.params.id, req.user.id]
+      'UPDATE bills SET status = $1, updated_at = NOW() WHERE id = $2 AND organization_id = $3 RETURNING *',
+      [status, req.params.id, req.organizationId]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Bill not found' });
     res.json(rows[0]);
@@ -418,11 +418,11 @@ router.patch('/:id/status', auth, async (req, res) => {
  */
 
 // DELETE /api/bills/:id
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', auth, requireRole('owner', 'admin'), async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'DELETE FROM bills WHERE id = $1 AND user_id = $2 AND status = $3 RETURNING id',
-      [req.params.id, req.user.id, 'draft']
+      'DELETE FROM bills WHERE id = $1 AND organization_id = $2 AND status = $3 RETURNING id',
+      [req.params.id, req.organizationId, 'draft']
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Bill not found or not draft' });
     res.json({ message: 'Bill deleted' });
@@ -480,8 +480,8 @@ router.get('/:id/pdf', auth, async (req, res) => {
   try {
     const billRes = await pool.query(
       `SELECT b.*, c.name as client_name, c.address, c.pan_number
-       FROM bills b JOIN clients c ON b.client_id = c.id WHERE b.id = $1 AND b.user_id = $2`,
-      [req.params.id, req.user.id]
+       FROM bills b JOIN clients c ON b.client_id = c.id WHERE b.id = $1 AND b.organization_id = $2`,
+      [req.params.id, req.organizationId]
     );
     if (billRes.rows.length === 0) return res.status(404).json({ error: 'Bill not found' });
     const bill = billRes.rows[0];
@@ -489,8 +489,8 @@ router.get('/:id/pdf', auth, async (req, res) => {
     const linesRes = await pool.query('SELECT * FROM bill_line_items WHERE bill_id = $1 ORDER BY date ASC', [bill.id]);
     const lineItems = linesRes.rows;
 
-    const userRes = await pool.query('SELECT name FROM users WHERE id = $1', [req.user.id]);
-    const firmName = userRes.rows[0]?.name || 'Law Firm';
+    const orgRes = await pool.query('SELECT name FROM organizations WHERE id = $1', [req.organizationId]);
+    const firmName = orgRes.rows[0]?.name || 'Law Firm';
 
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
     res.setHeader('Content-Type', 'application/pdf');

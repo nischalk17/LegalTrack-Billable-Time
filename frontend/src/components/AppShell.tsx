@@ -2,8 +2,8 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Clock, FileText, Lightbulb, LogOut, Scale, Users, Sliders, BarChart2, Puzzle } from 'lucide-react';
-import { activities } from '@/lib/api';
+import { LayoutDashboard, Clock, FileText, Lightbulb, LogOut, Scale, Users, Sliders, BarChart2, Puzzle, UserCog } from 'lucide-react';
+import { activities, organizations, OrganizationSummary } from '@/lib/api';
 import ActiveSessionBar from '@/components/ActiveSessionBar';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -11,6 +11,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const [untaggedCount, setUntaggedCount] = useState(0);
+  const [myOrgs, setMyOrgs] = useState<OrganizationSummary[]>([]);
+  const [switching, setSwitching] = useState(false);
   const isAuthPage = pathname === '/login' || pathname === '/register';
 
   useEffect(() => {
@@ -22,9 +24,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       setUser(JSON.parse(userData));
       if (!isAuthPage) {
         activities.getUntaggedCount().then(res => setUntaggedCount(res.count)).catch(() => {});
+        organizations.mine().then(setMyOrgs).catch(() => {});
       }
     }
   }, [pathname, isAuthPage, router]);
+
+  const handleSwitchOrg = async (organizationId: string) => {
+    setSwitching(true);
+    try {
+      await organizations.switch(organizationId);
+      window.location.reload();
+    } catch {
+      setSwitching(false);
+    }
+  };
 
   const logout = () => {
     localStorage.removeItem('auth_token');
@@ -40,6 +53,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     { href: '/clients',     icon: Users,          label: 'Clients' },
     { href: '/suggestions', icon: Lightbulb,       label: 'Suggestions' },
     { href: '/analytics',   icon: BarChart2,      label: 'Analytics' },
+    { href: '/settings/team',      icon: UserCog, label: 'Team' },
     { href: '/settings/extension', icon: Puzzle,  label: 'Extension' },
   ];
 
@@ -62,6 +76,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <div className="sidebar-footer">
+          {myOrgs.length > 1 && (
+            <select
+              value={myOrgs.find(o => o.is_active)?.id || ''}
+              onChange={e => handleSwitchOrg(e.target.value)}
+              disabled={switching}
+              style={{ width: '100%', marginBottom: 8, fontSize: 12 }}
+            >
+              {myOrgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+          )}
           {user && <div className="user-info"><div className="user-name">{user.name}</div><div className="user-email">{user.email}</div></div>}
           <button onClick={logout} className="logout-btn"><LogOut size={14} /> Logout</button>
         </div>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/lib/api';
 import AuthBrandPanel from '@/components/AuthBrandPanel';
+import ThemeToggle from '@/components/ThemeToggle';
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -30,6 +31,7 @@ export default function ForgotPasswordPage() {
     <div className="auth-page">
       <AuthBrandPanel />
       <div className="auth-form-panel">
+        <ThemeToggle compact />
         <div className="auth-card">
           <h1 className="auth-title">Forgot password</h1>
           <p className="auth-sub">We'll email you a 6-digit code to reset it.</p>

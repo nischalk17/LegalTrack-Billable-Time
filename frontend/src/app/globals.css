@@ -7,14 +7,14 @@
   --surface2:  #24211b;
   --border:    #332e25;
   --border2:   #453f32;
-  --text:      #ece5d6;
-  --text2:     #a89d89;
+  --text:      #f2ece0;
+  --text2:     #ab9f89;
   --text3:     #6e6553;
-  --accent:    #6faa8f;
-  --accent2:   #4c8570;
+  --accent:    #c9576a;
+  --accent2:   #a13a4c;
   --green:     #4caf50;
-  --yellow:    #c99a3b;
-  --red:       #c1453b;
+  --yellow:    #d3a53f;
+  --red:       #d1543f;
   --purple:    #9c8aa8;
   --overlay-scrim: rgba(10,9,6,.65);
 
@@ -52,11 +52,11 @@
   --text:      #221d14;
   --text2:     #6b6250;
   --text3:     #9c9276;
-  --accent:    #2f6350;
-  --accent2:   #21493a;
+  --accent:    #93293f;
+  --accent2:   #711f31;
   --green:     #2e7d32;
-  --yellow:    #8a6317;
-  --red:       #a3352b;
+  --yellow:    #96700f;
+  --red:       #ab3626;
   --purple:    #6d5a7d;
   --overlay-scrim: rgba(34,29,20,.4);
 
@@ -267,7 +267,7 @@ select option { background: var(--surface2); color: var(--text); }
 .auth-mock-value { font-family: var(--font-mono); color: var(--text); white-space: nowrap; }
 .auth-mock-total { display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px; padding-top: 14px; border-top: 1px solid var(--border2); }
 
-.auth-form-panel { display: flex; align-items: center; justify-content: center; padding: 32px; }
+.auth-form-panel { position: relative; display: flex; align-items: center; justify-content: center; padding: 32px; }
 .auth-card { width: 380px; max-width: 100%; }
 .auth-logo { display: none; }
 .auth-title { font-family: var(--font-serif); font-size: 24px; font-weight: 600; margin-bottom: 6px; letter-spacing: -.01em; }

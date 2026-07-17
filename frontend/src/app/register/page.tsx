@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { auth } from '@/lib/api';
 import AuthBrandPanel from '@/components/AuthBrandPanel';
 import PasswordRules, { isPasswordValid } from '@/components/PasswordRules';
+import ThemeToggle from '@/components/ThemeToggle';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -39,6 +40,7 @@ export default function RegisterPage() {
     <div className="auth-page">
       <AuthBrandPanel />
       <div className="auth-form-panel">
+        <ThemeToggle compact />
         <div className="auth-card">
           <h1 className="auth-title">Create Account</h1>
           <p className="auth-sub">Start tracking your billable time automatically</p>

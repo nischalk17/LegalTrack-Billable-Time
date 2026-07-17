@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/lib/api';
 import AuthBrandPanel from '@/components/AuthBrandPanel';
+import ThemeToggle from '@/components/ThemeToggle';
 
 const IS_DEV = process.env.NODE_ENV !== 'production';
 
@@ -34,6 +35,7 @@ export default function LoginPage() {
     <div className="auth-page">
       <AuthBrandPanel />
       <div className="auth-form-panel">
+        <ThemeToggle compact />
         <div className="auth-card">
           <h1 className="auth-title">Sign in</h1>
           <p className="auth-sub">Track and bill your legal work automatically</p>

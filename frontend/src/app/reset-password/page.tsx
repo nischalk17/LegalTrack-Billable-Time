@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { auth } from '@/lib/api';
 import AuthBrandPanel from '@/components/AuthBrandPanel';
 import PasswordRules, { isPasswordValid } from '@/components/PasswordRules';
+import ThemeToggle from '@/components/ThemeToggle';
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -46,6 +47,7 @@ function ResetPasswordForm() {
     <div className="auth-page">
       <AuthBrandPanel />
       <div className="auth-form-panel">
+        <ThemeToggle compact />
         <div className="auth-card">
           <h1 className="auth-title">Reset password</h1>
           <p className="auth-sub">Enter the code we emailed you and choose a new password.</p>

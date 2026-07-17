@@ -48,6 +48,13 @@ archive/electron-app/.env
 *.key
 *.p12
 *.pfx
+*.pgpass
+*credentials*
+*secret*
+.npmrc
+.netrc
+.aws/
+.ssh/
 
 # ── Logs ──────────────────────────────────────
 *.log
@@ -83,8 +90,10 @@ archive/electron-app/*.json
 .turbo/
 .vercel/
 
-# ── Claude Code / agent skills (local tooling) ─
+# ── AI tooling / local dev config (not part of the product) ─
 .claude/
 .agents/
 skills-lock.json
+.cursorignore
+AI_DEVELOPMENT_LOG.md
 

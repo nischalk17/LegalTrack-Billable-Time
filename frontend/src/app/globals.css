@@ -352,6 +352,12 @@ select option { background: var(--surface2); color: var(--text); }
 .duration { font-family: var(--font-mono); font-size: 12px; color: var(--text2); }
 .category-tag { font-size: 11px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; color: var(--text2); }
 
+/* ── Password strength meter ──────────────────── */
+.strength-meter { margin-top: 6px; }
+.strength-bars { display: flex; gap: 4px; margin-bottom: 5px; }
+.strength-bar { height: 4px; flex: 1; border-radius: 2px; background: var(--border2); transition: background-color .15s; }
+.strength-label { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; font-weight: 600; }
+
 /* ── Responsive ───────────────────────────────── */
 @media (max-width: 900px) {
   .app-shell { flex-direction: column; height: auto; min-height: 100vh; overflow: visible; }

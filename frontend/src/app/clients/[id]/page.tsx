@@ -123,7 +123,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
         </button>
       </div>
 
-      <div className="stats-grid" style={{gridTemplateColumns:'repeat(auto-fit, minmax(250px, 1fr))',marginBottom:32}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(250px, 1fr))',gap:16,marginBottom:32}}>
         <div className="card hover-lift">
           <div className="card-title">Contact Info</div>
           {client.contact_person && <div style={{fontWeight:500}}>{client.contact_person}</div>}

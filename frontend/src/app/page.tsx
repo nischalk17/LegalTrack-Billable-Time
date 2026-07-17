@@ -53,67 +53,53 @@ export default function DashboardPage() {
       </div>
 
       {loading ? (
-        <div className="bento-grid">
-          <Skeleton height={180} />
-          <Skeleton height={180} />
-        </div>
+        <Skeleton height={220} />
       ) : (
         <div className="bento-grid">
-          <div className="bento-hero">
-            <div>
-              <div className="stat-label">Total Tracked Today</div>
-              <div className="bento-hero-value">{formatHours(totalSeconds)}</div>
-              <div className="stat-sub">{stats?.by_source.reduce((a,s) => a + Number(s.event_count), 0) || 0} tracked events</div>
+          <div className="ledger">
+            <div className="ledger-total-label">Total Tracked Today</div>
+            <div className="ledger-total-value">{formatHours(totalSeconds)}</div>
+
+            <div className="ledger-row">
+              <span className="ledger-row-label"><Globe size={12} /> Browser</span>
+              <span className="ledger-row-fill" />
+              <span className="ledger-row-value">{formatHours(browserTime)}</span>
             </div>
-            {hoursByHour.length > 0 && (
-              <div style={{ height: 48, marginTop: 12 }}>
+            <div className="ledger-row">
+              <span className="ledger-row-label"><Laptop size={12} /> Desktop</span>
+              <span className="ledger-row-fill" />
+              <span className="ledger-row-value">{formatHours(desktopTime)}</span>
+            </div>
+            <div className="ledger-row">
+              <span className="ledger-row-label"><FileText size={12} /> Manual entries</span>
+              <span className="ledger-row-fill" />
+              <span className="ledger-row-value">{entriesCount}</span>
+            </div>
+            <div className="ledger-row">
+              <span className="ledger-row-label"><Lightbulb size={12} /> Pending suggestions</span>
+              <span className="ledger-row-fill" />
+              <span className="ledger-row-value">{pendingCount}</span>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-title">Hours by Hour</div>
+            {hoursByHour.length > 0 ? (
+              <div style={{ height: 160, marginTop: 8 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={hoursByHour}>
                     <Bar dataKey="minutes" fill="var(--accent)" radius={[2, 2, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+            ) : (
+              <div style={{color:'var(--text2)',fontSize:13}}>No activity tracked yet today</div>
             )}
-          </div>
-
-          <div className="bento-card">
-            <div className="card-title">Source Split</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text2)' }}><Globe size={12} /> Browser</span>
-                  <span className="duration">{formatHours(browserTime)}</span>
-                </div>
-                <div style={{ height: 6, background: 'var(--surface2)', borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${(browserTime / maxSourceTime) * 100}%`, background: 'var(--accent)', borderRadius: 3 }} />
-                </div>
+            {topApp && (
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text2)' }}>
+                <Monitor size={12} /> Top app: <span style={{ color: 'var(--text)' }}>{topApp.app_name}</span> — {formatHours(topApp.total_seconds)}
               </div>
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text2)' }}><Laptop size={12} /> Desktop</span>
-                  <span className="duration">{formatHours(desktopTime)}</span>
-                </div>
-                <div style={{ height: 6, background: 'var(--surface2)', borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${(desktopTime / maxSourceTime) * 100}%`, background: 'var(--purple)', borderRadius: 3 }} />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bento-card bento-small">
-            <div className="stat-label">Manual Entries</div>
-            <div className="stat-value" style={{ color: 'var(--green)' }}>{entriesCount}</div>
-            <div className="stat-sub" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><FileText size={11} /> Logged time entries</div>
-          </div>
-          <div className="bento-card bento-small">
-            <div className="stat-label">Pending Suggestions</div>
-            <div className="stat-value" style={{ color: 'var(--yellow)' }}>{pendingCount}</div>
-            <div className="stat-sub" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Lightbulb size={11} /> Ready to convert</div>
-          </div>
-          <div className="bento-card bento-small">
-            <div className="stat-label">Top Application</div>
-            <div className="stat-value" style={{ fontSize: 18, fontFamily: 'var(--font-sans)' }}>{topApp?.app_name || '—'}</div>
-            <div className="stat-sub" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Monitor size={11} /> {topApp ? formatHours(topApp.total_seconds) : 'No activity yet'}</div>
+            )}
           </div>
         </div>
       )}

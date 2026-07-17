@@ -3,36 +3,38 @@ import { Scale } from 'lucide-react';
 export default function AuthBrandPanel() {
   return (
     <div className="auth-brand-panel">
-      <div className="auth-brand-mark"><Scale size={20} /></div>
-      <h1 className="auth-brand-title">Billable time, tracked automatically.</h1>
+      <div className="auth-brand-mark"><Scale size={18} /></div>
+      <h1 className="auth-brand-title">Billable time, kept like a ledger.</h1>
       <p className="auth-brand-sub">
         LegalTrack captures your team's research and drafting time, matches it to the right
         client, and turns it into invoices — so your firm spends less time on timesheets.
       </p>
 
-      {/* Mock product preview instead of a generic icon+bullet list */}
+      {/* Ledger receipt preview instead of a generic icon+bullet list */}
       <div className="auth-mock">
         <div className="auth-mock-titlebar">
-          <span className="auth-mock-dot" />
-          <span className="auth-mock-dot" />
-          <span className="auth-mock-dot" />
+          <span>Draft Invoice</span>
+          <span>INV-2026-014</span>
         </div>
         <div className="auth-mock-body">
           <div className="auth-mock-row">
-            <div className="auth-mock-bar" style={{ maxWidth: '55%' }} />
-            <span className="auth-mock-chip" style={{ background: 'color-mix(in srgb, var(--accent) 18%, transparent)', color: 'var(--accent)' }}>Browser</span>
+            <span className="auth-mock-label">Legal research — Westlaw</span>
+            <span className="auth-mock-fill" />
+            <span className="auth-mock-value">1h 20m</span>
           </div>
           <div className="auth-mock-row">
-            <div className="auth-mock-bar" style={{ maxWidth: '75%' }} />
-            <span className="auth-mock-chip" style={{ background: 'color-mix(in srgb, var(--purple) 18%, transparent)', color: 'var(--purple)' }}>Desktop</span>
+            <span className="auth-mock-label">Contract drafting</span>
+            <span className="auth-mock-fill" />
+            <span className="auth-mock-value">2h 05m</span>
           </div>
           <div className="auth-mock-row">
-            <div className="auth-mock-bar" style={{ maxWidth: '35%' }} />
-            <span className="auth-mock-chip" style={{ background: 'color-mix(in srgb, var(--green) 18%, transparent)', color: 'var(--green)' }}>Billed</span>
+            <span className="auth-mock-label">Client correspondence</span>
+            <span className="auth-mock-fill" />
+            <span className="auth-mock-value">0h 35m</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 11, color: 'var(--text2)' }}>This week</span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 15, color: 'var(--text)' }}>Rs. 84,500</span>
+          <div className="auth-mock-total">
+            <span style={{ fontSize: 12, color: 'var(--text2)' }}>Total due</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 17, color: 'var(--text)' }}>Rs. 84,500</span>
           </div>
         </div>
       </div>

@@ -14,7 +14,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [untaggedCount, setUntaggedCount] = useState(0);
   const [myOrgs, setMyOrgs] = useState<OrganizationSummary[]>([]);
   const [switching, setSwitching] = useState(false);
-  const isAuthPage = pathname === '/login' || pathname === '/register';
+  const AUTH_PAGES = ['/login', '/register', '/forgot-password', '/reset-password'];
+  const isAuthPage = AUTH_PAGES.includes(pathname);
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
